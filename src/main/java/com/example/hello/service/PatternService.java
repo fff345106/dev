@@ -1,0 +1,185 @@
+package com.example.hello.service;
+
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+
+import com.example.hello.dto.PatternRequest;
+import com.example.hello.entity.Pattern;
+import com.example.hello.enums.PatternCodeEnum;
+import com.example.hello.repository.PatternRepository;
+
+@Service
+public class PatternService {
+    private final PatternRepository patternRepository;
+    private final ImageService imageService;
+
+    public PatternService(PatternRepository patternRepository, ImageService imageService) {
+        this.patternRepository = patternRepository;
+        this.imageService = imageService;
+    }
+
+    public Pattern create(PatternRequest request) {
+        // 验证代码
+        validateCodes(request);
+
+        Pattern pattern = new Pattern();
+        pattern.setDescription(request.getDescription());
+        pattern.setMainCategory(request.getMainCategory().toUpperCase());
+        pattern.setSubCategory(request.getSubCategory().toUpperCase());
+        pattern.setStyle(request.getStyle().toUpperCase());
+        pattern.setRegion(request.getRegion().toUpperCase());
+        pattern.setPeriod(request.getPeriod().toUpperCase());
+        pattern.setImageUrl(request.getImageUrl());
+
+        // 生成日期代码和序列号
+        String dateCode = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
+        pattern.setDateCode(dateCode);
+
+        int sequenceNumber = generateSequenceNumber(dateCode);
+        pattern.setSequenceNumber(sequenceNumber);
+
+        // 生成完整编码
+        pattern.setPatternCode(generatePatternCode(pattern));
+
+        // 如果有图片URL，重命名为纹样编码
+        if (pattern.getImageUrl() != null && !pattern.getImageUrl().isEmpty()) {
+            try {
+                String newUrl = imageService.renameToPatternCode(pattern.getImageUrl(), pattern.getPatternCode());
+                pattern.setImageUrl(newUrl);
+            } catch (IOException e) {
+                // 重命名失败保留原URL
+            }
+        }
+
+        return patternRepository.save(pattern);
+    }
+
+    public List<Pattern> findAll() {
+        return patternRepository.findAll();
+    }
+
+    public Pattern findById(Long id) {
+        return patternRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("纹样不存在"));
+    }
+
+    public Pattern findByCode(String code) {
+        return patternRepository.findByPatternCode(code)
+                .orElseThrow(() -> new RuntimeException("纹样不存在"));
+    }
+
+    public Pattern update(Long id, PatternRequest request) {
+        // 验证代码
+        validateCodes(request);
+
+        Pattern pattern = findById(id);
+        pattern.setDescription(request.getDescription());
+        pattern.setMainCategory(request.getMainCategory().toUpperCase());
+        pattern.setSubCategory(request.getSubCategory().toUpperCase());
+        pattern.setStyle(request.getStyle().toUpperCase());
+        pattern.setRegion(request.getRegion().toUpperCase());
+        pattern.setPeriod(request.getPeriod().toUpperCase());
+        pattern.setImageUrl(request.getImageUrl());
+        // 更新时不改变日期代码、序列号和纹样编码
+        return patternRepository.save(pattern);
+    }
+
+    public void delete(Long id) {
+        Pattern pattern = findById(id);
+        
+        // 删除关联的图片文件
+        if (pattern.getImageUrl() != null && !pattern.getImageUrl().isEmpty()) {
+            try {
+                imageService.delete(pattern.getImageUrl());
+            } catch (IOException e) {
+                // 图片删除失败不影响纹样删除
+            }
+        }
+        
+        patternRepository.deleteById(id);
+    }
+
+    public List<Pattern> findByMainCategory(String mainCategory) {
+        return patternRepository.findByMainCategory(mainCategory.toUpperCase());
+    }
+
+    public List<Pattern> findByStyle(String style) {
+        return patternRepository.findByStyle(style.toUpperCase());
+    }
+
+    public List<Pattern> findByRegion(String region) {
+        return patternRepository.findByRegion(region.toUpperCase());
+    }
+
+    public List<Pattern> findByPeriod(String period) {
+        return patternRepository.findByPeriod(period.toUpperCase());
+    }
+
+    /**
+     * 验证所有代码的有效性
+     */
+    private void validateCodes(PatternRequest request) {
+        String mainCategory = request.getMainCategory().toUpperCase();
+        String subCategory = request.getSubCategory().toUpperCase();
+        String style = request.getStyle().toUpperCase();
+        String region = request.getRegion().toUpperCase();
+        String period = request.getPeriod().toUpperCase();
+
+        // 验证主类别
+        if (!PatternCodeEnum.MainCategory.isValid(mainCategory)) {
+            throw new IllegalArgumentException("无效的主类别代码: " + mainCategory);
+        }
+
+        // 验证子类别（根据主类别判断）
+        if (!PatternCodeEnum.isValidSubCategory(mainCategory, subCategory)) {
+            if (PatternCodeEnum.CATEGORIES_WITH_SUB.contains(mainCategory)) {
+                throw new IllegalArgumentException("无效的子类别代码: " + subCategory + "，主类别: " + mainCategory);
+            } else {
+                throw new IllegalArgumentException("无效的风格代码(子类别位置): " + subCategory);
+            }
+        }
+
+        // 验证风格
+        if (!PatternCodeEnum.Style.isValid(style)) {
+            throw new IllegalArgumentException("无效的风格代码: " + style);
+        }
+
+        // 验证地区
+        if (!PatternCodeEnum.Region.isValid(region)) {
+            throw new IllegalArgumentException("无效的地区代码: " + region);
+        }
+
+        // 验证时期
+        if (!PatternCodeEnum.Period.isValid(period)) {
+            throw new IllegalArgumentException("无效的时期代码: " + period);
+        }
+    }
+
+    /**
+     * 生成当日序列号
+     */
+    private int generateSequenceNumber(String dateCode) {
+        // 按天递增：查询当天最大序号
+        Integer maxSeq = patternRepository.findMaxSequenceNumberByDateCode(dateCode);
+        return (maxSeq == null ? 0 : maxSeq) + 1;
+    }
+
+    /**
+     * 生成纹样编码
+     * 格式: 主类别-子类别-风格-地区-时期-日期-序列号
+     */
+    private String generatePatternCode(Pattern pattern) {
+        return String.format("%s-%s-%s-%s-%s-%s-%03d",
+                pattern.getMainCategory(),
+                pattern.getSubCategory(),
+                pattern.getStyle(),
+                pattern.getRegion(),
+                pattern.getPeriod(),
+                pattern.getDateCode(),
+                pattern.getSequenceNumber());
+    }
+}
