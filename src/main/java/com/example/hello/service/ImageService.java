@@ -1,9 +1,10 @@
 package com.example.hello.service;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.UUID;
-
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -57,6 +58,7 @@ public class ImageService {
 
     /**
      * 上传图片到临时目录（待审核）
+     * 自动转换为SVG矢量图
      */
     public String upload(MultipartFile file) throws IOException {
         if (file.isEmpty()) {
@@ -68,22 +70,96 @@ public class ImageService {
             throw new IllegalArgumentException("只能上传图片文件");
         }
 
-        String extension = getFileExtension(file.getOriginalFilename());
-        String fileName = TEMP_FOLDER + UUID.randomUUID().toString() + extension;
+        // 保存上传的文件到本地临时文件
+        String originalFilename = file.getOriginalFilename();
+        String extension = getFileExtension(originalFilename);
+        File tempInputFile = File.createTempFile("upload_", extension);
+        file.transferTo(tempInputFile);
 
         try {
-            PutObjectRequest request = PutObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(fileName)
-                    .contentType(contentType)
-                    .build();
+            // 转换为SVG
+            File svgFile = convertToSvg(tempInputFile);
+            
+            // 上传SVG到S3
+            String fileName = TEMP_FOLDER + UUID.randomUUID().toString() + ".svg";
+            
+            try {
+                PutObjectRequest request = PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(fileName)
+                        .contentType("image/svg+xml")
+                        .build();
 
-            s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+                s3Client.putObject(request, RequestBody.fromFile(svgFile));
 
-            return baseUrl + "/" + fileName;
-        } catch (S3Exception e) {
-            System.err.println("S3上传失败: " + e.getMessage());
-            throw new IOException("上传到对象存储失败: " + e.getMessage(), e);
+                return baseUrl + "/" + fileName;
+            } catch (S3Exception e) {
+                System.err.println("S3上传失败: " + e.getMessage());
+                throw new IOException("上传到对象存储失败: " + e.getMessage(), e);
+            } finally {
+                // 清理SVG临时文件
+                if (svgFile.exists()) {
+                    svgFile.delete();
+                }
+            }
+        } finally {
+            // 清理输入临时文件
+            if (tempInputFile.exists()) {
+                tempInputFile.delete();
+            }
+        }
+    }
+
+    /**
+     * 将图片转换为SVG矢量图
+     * 流程: Image -> BMP (ImageMagick) -> SVG (Potrace)
+     */
+    private File convertToSvg(File inputFile) throws IOException {
+        File bmpFile = File.createTempFile("temp_", ".bmp");
+        File svgFile = File.createTempFile("output_", ".svg");
+        // potrace输出时会自动添加后缀，所以我们只需要提供基础文件名，或者直接重定向stdout
+        // 这里为了简单，我们让potrace输出到指定文件
+        
+        try {
+            // 1. 使用ImageMagick convert将任意格式转换为BMP (potrace只支持BMP/PNM)
+            // 命令: convert input.jpg output.bmp
+            ProcessBuilder convertPb = new ProcessBuilder(
+                    "convert", 
+                    inputFile.getAbsolutePath(), 
+                    bmpFile.getAbsolutePath()
+            );
+            convertPb.redirectErrorStream(true);
+            Process convertProcess = convertPb.start();
+            boolean convertFinished = convertProcess.waitFor(30, TimeUnit.SECONDS);
+            if (!convertFinished || convertProcess.exitValue() != 0) {
+                throw new IOException("ImageMagick转换失败");
+            }
+
+            // 2. 使用potrace将BMP转换为SVG
+            // 命令: potrace input.bmp -s -o output.svg
+            ProcessBuilder potracePb = new ProcessBuilder(
+                    "potrace",
+                    bmpFile.getAbsolutePath(),
+                    "-s", // 生成SVG
+                    "-o",
+                    svgFile.getAbsolutePath()
+            );
+            potracePb.redirectErrorStream(true);
+            Process potraceProcess = potracePb.start();
+            boolean potraceFinished = potraceProcess.waitFor(30, TimeUnit.SECONDS);
+            if (!potraceFinished || potraceProcess.exitValue() != 0) {
+                throw new IOException("Potrace矢量化失败");
+            }
+
+            return svgFile;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("图片转换被中断", e);
+        } finally {
+            // 清理BMP中间文件
+            if (bmpFile.exists()) {
+                bmpFile.delete();
+            }
         }
     }
 
