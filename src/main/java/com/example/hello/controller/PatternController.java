@@ -77,4 +77,38 @@ public class PatternController {
     public ResponseEntity<List<Pattern>> findByPeriod(@PathVariable String period) {
         return ResponseEntity.ok(patternService.findByPeriod(period));
     }
+
+    @GetMapping("/{id}/download")
+    public ResponseEntity<org.springframework.core.io.InputStreamResource> download(@PathVariable Long id) {
+        try {
+            java.util.Map<String, Object> result = patternService.download(id);
+            java.io.InputStream inputStream = (java.io.InputStream) result.get("stream");
+            String filename = (String) result.get("filename");
+            String contentType = (String) result.get("contentType");
+
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(org.springframework.http.MediaType.parseMediaType(contentType))
+                    .body(new org.springframework.core.io.InputStreamResource(inputStream));
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("下载失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 批量下载纹样图片
+     */
+    @PostMapping("/batch-download")
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> batchDownload(
+            @Valid @RequestBody com.example.hello.dto.BatchDownloadRequest request) {
+        
+        org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody stream = outputStream -> {
+            patternService.batchDownload(request.getIds(), outputStream);
+        };
+
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"patterns.zip\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/zip"))
+                .body(stream);
+    }
 }

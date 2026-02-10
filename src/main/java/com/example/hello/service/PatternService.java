@@ -120,6 +120,78 @@ public class PatternService {
     }
 
     /**
+     * 下载纹样图片
+     * @return Pair<InputStream, Filename>
+     */
+    public java.util.Map<String, Object> download(Long id) throws IOException {
+        Pattern pattern = findById(id);
+        if (pattern.getImageUrl() == null || pattern.getImageUrl().isEmpty()) {
+            throw new RuntimeException("该纹样没有图片");
+        }
+
+        var inputStream = imageService.download(pattern.getImageUrl());
+        
+        // 提取扩展名
+        String extension = ".jpg"; // 默认
+        if (pattern.getImageUrl().contains(".")) {
+            extension = pattern.getImageUrl().substring(pattern.getImageUrl().lastIndexOf("."));
+        }
+        
+        String filename = pattern.getPatternCode() + extension;
+        
+        return java.util.Map.of(
+            "stream", inputStream,
+            "filename", filename,
+            "contentType", inputStream.response().contentType()
+        );
+    }
+
+    /**
+     * 批量下载纹样图片
+     */
+    public void batchDownload(List<Long> ids, java.io.OutputStream outputStream) throws IOException {
+        List<Pattern> patterns = patternRepository.findAllById(ids);
+        
+        try (java.util.zip.ZipOutputStream zipOut = new java.util.zip.ZipOutputStream(outputStream)) {
+            java.util.Set<String> usedFilenames = new java.util.HashSet<>();
+            
+            for (Pattern pattern : patterns) {
+                if (pattern.getImageUrl() == null || pattern.getImageUrl().isEmpty()) {
+                    continue;
+                }
+                
+                try (java.io.InputStream inputStream = imageService.download(pattern.getImageUrl())) {
+                    // 确定扩展名
+                    String extension = ".jpg";
+                    if (pattern.getImageUrl().contains(".")) {
+                        extension = pattern.getImageUrl().substring(pattern.getImageUrl().lastIndexOf("."));
+                    }
+                    
+                    // 生成唯一文件名
+                    String baseFilename = pattern.getPatternCode() + extension;
+                    String filename = baseFilename;
+                    int counter = 1;
+                    while (usedFilenames.contains(filename)) {
+                        filename = pattern.getPatternCode() + "_" + counter + extension;
+                        counter++;
+                    }
+                    usedFilenames.add(filename);
+                    
+                    // 添加到ZIP
+                    java.util.zip.ZipEntry zipEntry = new java.util.zip.ZipEntry(filename);
+                    zipOut.putNextEntry(zipEntry);
+                    
+                    inputStream.transferTo(zipOut);
+                    zipOut.closeEntry();
+                } catch (Exception e) {
+                    // 忽略单个文件下载失败，或者添加错误日志
+                    System.err.println("Failed to download pattern " + pattern.getId() + ": " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
      * 验证所有代码的有效性
      */
     private void validateCodes(PatternRequest request) {

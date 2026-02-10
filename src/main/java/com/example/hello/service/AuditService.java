@@ -266,9 +266,47 @@ public class AuditService {
     }
 
     /**
+     * 确保待审核记录有完整的编码（处理旧数据丢失编码的情况）
+     */
+    private void ensureCodes(PatternPending pending) {
+        if (pending.getDateCode() != null && !pending.getDateCode().isEmpty()) {
+            return;
+        }
+
+        // 生成日期代码
+        String dateCode = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
+        pending.setDateCode(dateCode);
+
+        // 生成序列号 (直接追加到当天末尾)
+        Integer maxSeq = pendingRepository.findMaxActiveSequenceNumberByDateCode(dateCode);
+        Integer maxPatternSeq = patternRepository.findMaxSequenceNumberByDateCode(dateCode);
+        
+        int nextSeq = Math.max(
+            maxSeq == null ? 0 : maxSeq,
+            maxPatternSeq == null ? 0 : maxPatternSeq
+        ) + 1;
+        
+        pending.setSequenceNumber(nextSeq);
+        
+        // 生成完整编码
+        pending.setPatternCode(generatePatternCode(pending));
+        
+        // 保存更新后的待审核记录
+        pendingRepository.save(pending);
+    }
+
+    /**
      * 将审核通过的记录移入正式表（直接使用已生成的编码）
      */
     private Pattern moveToPattern(PatternPending pending) {
+        // 确保编码存在
+        ensureCodes(pending);
+
+        // 安全检查：如果编码仍然缺失，抛出异常而不是让SQL报错
+        if (pending.getDateCode() == null || pending.getDateCode().isEmpty()) {
+            throw new RuntimeException("无法生成纹样编码: dateCode 为空 (ID: " + pending.getId() + ")");
+        }
+
         Pattern pattern = new Pattern();
         pattern.setDescription(pending.getDescription());
         pattern.setMainCategory(pending.getMainCategory());

@@ -4,7 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -58,7 +58,7 @@ public class ImageService {
 
     /**
      * 上传图片到临时目录（待审核）
-     * 自动转换为SVG矢量图
+     * 仅保存原图
      */
     public String upload(MultipartFile file) throws IOException {
         if (file.isEmpty()) {
@@ -77,88 +77,24 @@ public class ImageService {
         file.transferTo(tempInputFile);
 
         try {
-            // 转换为SVG
-            File svgFile = convertToSvg(tempInputFile);
-            
-            // 上传SVG到S3
-            String fileName = TEMP_FOLDER + UUID.randomUUID().toString() + ".svg";
-            
+            // 上传原图到S3
+            String originalKey = TEMP_FOLDER + UUID.randomUUID().toString() + extension;
             try {
-                PutObjectRequest request = PutObjectRequest.builder()
+                PutObjectRequest originalRequest = PutObjectRequest.builder()
                         .bucket(bucket)
-                        .key(fileName)
-                        .contentType("image/svg+xml")
+                        .key(originalKey)
+                        .contentType(contentType)
                         .build();
-
-                s3Client.putObject(request, RequestBody.fromFile(svgFile));
-
-                return baseUrl + "/" + fileName;
+                s3Client.putObject(originalRequest, RequestBody.fromFile(tempInputFile));
+                return baseUrl + "/" + originalKey;
             } catch (S3Exception e) {
-                System.err.println("S3上传失败: " + e.getMessage());
-                throw new IOException("上传到对象存储失败: " + e.getMessage(), e);
-            } finally {
-                // 清理SVG临时文件
-                if (svgFile.exists()) {
-                    svgFile.delete();
-                }
+                System.err.println("S3原图上传失败: " + e.getMessage());
+                throw new IOException("原图上传到对象存储失败: " + e.getMessage(), e);
             }
         } finally {
             // 清理输入临时文件
             if (tempInputFile.exists()) {
                 tempInputFile.delete();
-            }
-        }
-    }
-
-    /**
-     * 将图片转换为SVG矢量图
-     * 流程: Image -> BMP (ImageMagick) -> SVG (Potrace)
-     */
-    private File convertToSvg(File inputFile) throws IOException {
-        File bmpFile = File.createTempFile("temp_", ".bmp");
-        File svgFile = File.createTempFile("output_", ".svg");
-        // potrace输出时会自动添加后缀，所以我们只需要提供基础文件名，或者直接重定向stdout
-        // 这里为了简单，我们让potrace输出到指定文件
-        
-        try {
-            // 1. 使用ImageMagick convert将任意格式转换为BMP (potrace只支持BMP/PNM)
-            // 命令: convert input.jpg output.bmp
-            ProcessBuilder convertPb = new ProcessBuilder(
-                    "convert", 
-                    inputFile.getAbsolutePath(), 
-                    bmpFile.getAbsolutePath()
-            );
-            convertPb.redirectErrorStream(true);
-            Process convertProcess = convertPb.start();
-            boolean convertFinished = convertProcess.waitFor(30, TimeUnit.SECONDS);
-            if (!convertFinished || convertProcess.exitValue() != 0) {
-                throw new IOException("ImageMagick转换失败");
-            }
-
-            // 2. 使用potrace将BMP转换为SVG
-            // 命令: potrace input.bmp -s -o output.svg
-            ProcessBuilder potracePb = new ProcessBuilder(
-                    "potrace",
-                    bmpFile.getAbsolutePath(),
-                    "-s", // 生成SVG
-                    "-o",
-                    svgFile.getAbsolutePath()
-            );
-            potracePb.redirectErrorStream(true);
-            Process potraceProcess = potracePb.start();
-            boolean potraceFinished = potraceProcess.waitFor(30, TimeUnit.SECONDS);
-            if (!potraceFinished || potraceProcess.exitValue() != 0) {
-                throw new IOException("Potrace矢量化失败");
-            }
-
-            return svgFile;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("图片转换被中断", e);
-        } finally {
-            // 清理BMP中间文件
-            if (bmpFile.exists()) {
-                bmpFile.delete();
             }
         }
     }
@@ -245,6 +181,27 @@ public class ImageService {
      */
     public String renameToPatternCode(String oldUrl, String patternCode) throws IOException {
         return moveToFormal(oldUrl, patternCode);
+    }
+
+    /**
+     * 下载图片
+     */
+    public software.amazon.awssdk.core.ResponseInputStream<software.amazon.awssdk.services.s3.model.GetObjectResponse> download(String imageUrl) throws IOException {
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            throw new IllegalArgumentException("图片URL不能为空");
+        }
+
+        try {
+            String key = extractKeyFromUrl(imageUrl);
+            software.amazon.awssdk.services.s3.model.GetObjectRequest request = software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build();
+            return s3Client.getObject(request);
+        } catch (S3Exception e) {
+            System.err.println("下载图片失败: " + e.getMessage());
+            throw new IOException("下载图片失败: " + e.getMessage(), e);
+        }
     }
 
     /**

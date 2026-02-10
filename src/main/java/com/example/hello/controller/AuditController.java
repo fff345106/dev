@@ -66,7 +66,7 @@ public class AuditController {
             @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         auditService.batchAudit(request, userId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(java.util.Map.of("message", "批量审核成功"));
     }
 
     /**
