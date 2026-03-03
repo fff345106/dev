@@ -1,5 +1,7 @@
 package com.example.hello.service;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,6 +76,17 @@ public class UserService {
         }
 
         return userRepository.findAll();
+    }
+
+    public Page<User> getAllUsers(Long operatorUserId, Pageable pageable) {
+        User operator = userRepository.findById(operatorUserId)
+                .orElseThrow(() -> new RuntimeException("操作者不存在"));
+
+        if (operator.getRole() != UserRole.SUPER_ADMIN) {
+            throw new RuntimeException("无权限查看用户列表");
+        }
+
+        return userRepository.findAll(pageable);
     }
 
     /**

@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -197,11 +199,19 @@ public class AuditService {
         return pendingRepository.findByStatus(AuditStatus.PENDING);
     }
 
+    public Page<PatternPending> findPending(Pageable pageable) {
+        return pendingRepository.findByStatus(AuditStatus.PENDING, pageable);
+    }
+
     /**
      * 获取所有待审核记录
      */
     public List<PatternPending> findAll() {
         return pendingRepository.findAll();
+    }
+
+    public Page<PatternPending> findAll(Pageable pageable) {
+        return pendingRepository.findAll(pageable);
     }
 
     /**
@@ -211,11 +221,19 @@ public class AuditService {
         return pendingRepository.findByStatus(status);
     }
 
+    public Page<PatternPending> findByStatus(AuditStatus status, Pageable pageable) {
+        return pendingRepository.findByStatus(status, pageable);
+    }
+
     /**
      * 查询提交人的记录
      */
     public List<PatternPending> findBySubmitter(Long submitterId) {
         return pendingRepository.findBySubmitterId(submitterId);
+    }
+
+    public Page<PatternPending> findBySubmitter(Long submitterId, Pageable pageable) {
+        return pendingRepository.findBySubmitterId(submitterId, pageable);
     }
 
     /**

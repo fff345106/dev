@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.example.hello.dto.PatternRequest;
@@ -62,6 +64,10 @@ public class PatternService {
         return patternRepository.findAll();
     }
 
+    public Page<Pattern> findAll(Pageable pageable) {
+        return patternRepository.findAll(pageable);
+    }
+
     public Pattern findById(Long id) {
         return patternRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("纹样不存在"));
@@ -107,16 +113,32 @@ public class PatternService {
         return patternRepository.findByMainCategory(mainCategory.toUpperCase());
     }
 
+    public Page<Pattern> findByMainCategory(String mainCategory, Pageable pageable) {
+        return patternRepository.findByMainCategory(mainCategory.toUpperCase(), pageable);
+    }
+
     public List<Pattern> findByStyle(String style) {
         return patternRepository.findByStyle(style.toUpperCase());
+    }
+
+    public Page<Pattern> findByStyle(String style, Pageable pageable) {
+        return patternRepository.findByStyle(style.toUpperCase(), pageable);
     }
 
     public List<Pattern> findByRegion(String region) {
         return patternRepository.findByRegion(region.toUpperCase());
     }
 
+    public Page<Pattern> findByRegion(String region, Pageable pageable) {
+        return patternRepository.findByRegion(region.toUpperCase(), pageable);
+    }
+
     public List<Pattern> findByPeriod(String period) {
         return patternRepository.findByPeriod(period.toUpperCase());
+    }
+
+    public Page<Pattern> findByPeriod(String period, Pageable pageable) {
+        return patternRepository.findByPeriod(period.toUpperCase(), pageable);
     }
 
     /**

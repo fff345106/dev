@@ -2,6 +2,8 @@ package com.example.hello.controller;
 
 import java.util.Map;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,10 +66,10 @@ public class UserController {
      * 获取所有用户列表（仅超级管理员可操作）
      */
     @GetMapping
-    public ResponseEntity<?> getAllUsers(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> getAllUsers(@RequestHeader("Authorization") String token, @PageableDefault(size = 20) Pageable pageable) {
         try {
             Long operatorUserId = getUserIdFromToken(token);
-            return ResponseEntity.ok(userService.getAllUsers(operatorUserId));
+            return ResponseEntity.ok(userService.getAllUsers(operatorUserId, pageable));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }

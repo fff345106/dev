@@ -1,0 +1,233 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-02-12T12:48:30Z",
+  "project": {
+    "name": "hello",
+    "type": "spring-boot",
+    "description": "中国传统纹样数字档案系统",
+    "rootPath": "/home/devbox/project"
+  },
+  "metadata": {
+    "javaVersion": 17,
+    "springBootVersion": "3.5.9",
+    "buildTool": "maven",
+    "database": "mysql",
+    "totalJavaFiles": 40,
+    "totalLinesOfCode": 3110,
+    "testFiles": 1
+  },
+  "modules": [
+    {
+      "name": "controller",
+      "path": "src/main/java/com/example/hello/controller",
+      "type": "presentation-layer",
+      "description": "REST API 控制器层",
+      "files": [
+        "AuthController.java",
+        "AuditController.java",
+        "DraftController.java",
+        "ImageController.java",
+        "PatternController.java",
+        "StatsController.java",
+        "UserController.java"
+      ],
+      "apis": 30,
+      "coverage": "100%"
+    },
+    {
+      "name": "service",
+      "path": "src/main/java/com/example/hello/service",
+      "type": "business-layer",
+      "description": "业务逻辑层",
+      "files": [
+        "AuthService.java",
+        "AuditService.java",
+        "DraftService.java",
+        "ImageService.java",
+        "PatternService.java",
+        "StatsService.java",
+        "UserService.java"
+      ],
+      "methods": 50,
+      "coverage": "100%"
+    },
+    {
+      "name": "entity",
+      "path": "src/main/java/com/example/hello/entity",
+      "type": "data-model",
+      "description": "JPA 实体类",
+      "files": [
+        "User.java",
+        "Pattern.java",
+        "PatternDraft.java",
+        "PatternPending.java"
+      ],
+      "tables": 4,
+      "coverage": "100%"
+    },
+    {
+      "name": "repository",
+      "path": "src/main/java/com/example/hello/repository",
+      "type": "data-access",
+      "description": "Spring Data JPA 仓库",
+      "files": [
+        "UserRepository.java",
+        "PatternRepository.java",
+        "PatternDraftRepository.java",
+        "PatternPendingRepository.java"
+      ],
+      "queries": 15,
+      "coverage": "100%"
+    },
+    {
+      "name": "dto",
+      "path": "src/main/java/com/example/hello/dto",
+      "type": "data-transfer",
+      "description": "数据传输对象",
+      "files": [
+        "AuthResponse.java",
+        "AuditRequest.java",
+        "BatchAuditRequest.java",
+        "BatchDownloadRequest.java",
+        "DraftRequest.java",
+        "LoginRequest.java",
+        "PatternRequest.java",
+        "RegisterRequest.java",
+        "StatsResponse.java"
+      ],
+      "count": 9,
+      "coverage": "100%"
+    },
+    {
+      "name": "enums",
+      "path": "src/main/java/com/example/hello/enums",
+      "type": "enumerations",
+      "description": "枚举定义",
+      "files": [
+        "AuditStatus.java",
+        "PatternCodeEnum.java",
+        "UserRole.java"
+      ],
+      "count": 3,
+      "coverage": "100%"
+    },
+    {
+      "name": "config",
+      "path": "src/main/java/com/example/hello/config",
+      "type": "configuration",
+      "description": "Spring 配置类",
+      "files": [
+        "DataInitializer.java",
+        "ScheduledTasks.java",
+        "SecurityConfig.java"
+      ],
+      "count": 3,
+      "coverage": "100%"
+    },
+    {
+      "name": "util",
+      "path": "src/main/java/com/example/hello/util",
+      "type": "utilities",
+      "description": "工具类",
+      "files": [
+        "JwtUtil.java"
+      ],
+      "count": 1,
+      "coverage": "100%"
+    },
+    {
+      "name": "exception",
+      "path": "src/main/java/com/example/hello/exception",
+      "type": "exception-handling",
+      "description": "异常处理",
+      "files": [
+        "GlobalExceptionHandler.java"
+      ],
+      "count": 1,
+      "coverage": "100%"
+    }
+  ],
+  "keyPaths": {
+    "entryPoint": "src/main/java/com/example/hello/HelloApplication.java",
+    "configFiles": [
+      "pom.xml",
+      "src/main/resources/application.properties"
+    ],
+    "testEntry": "src/test/java/com/example/hello/HelloApplicationTests.java",
+    "deployment": "entrypoint.sh"
+  },
+  "features": {
+    "authentication": {
+      "type": "JWT",
+      "library": "jjwt 0.12.5",
+      "tokenExpiration": 86400000
+    },
+    "database": {
+      "type": "MySQL",
+      "orm": "Spring Data JPA",
+      "ddlAuto": "update"
+    },
+    "storage": {
+      "type": "S3-compatible",
+      "provider": "Sealos Object Storage",
+      "library": "AWS SDK Java 2.25.16"
+    },
+    "scheduling": {
+      "enabled": true,
+      "tasks": [
+        "cleanupApprovedRecords - 每天凌晨2点"
+      ]
+    }
+  },
+  "businessRules": {
+    "patternCode": {
+      "format": "主类别-子类别-风格-地区-时期-日期(YYMMDD)-序列号(3位)",
+      "example": "AN-BD-TR-CN-QG-240615-001"
+    },
+    "userRoles": {
+      "SUPER_ADMIN": "超级管理员",
+      "ADMIN": "管理员",
+      "USER": "录入员"
+    },
+    "auditStatus": {
+      "PENDING": "待审核",
+      "APPROVED": "已通过",
+      "REJECTED": "已拒绝"
+    },
+    "draftLimit": 10,
+    "maxFileSize": "10MB"
+  },
+  "apiEndpoints": {
+    "auth": "/api/auth",
+    "drafts": "/api/drafts",
+    "audit": "/api/audit",
+    "patterns": "/api/patterns",
+    "images": "/api/images",
+    "users": "/api/users",
+    "stats": "/api/stats"
+  },
+  "coverage": {
+    "totalFiles": 40,
+    "scannedFiles": 40,
+    "coveragePercent": 100,
+    "truncated": false
+  },
+  "ignoredPaths": [
+    "target/**",
+    ".git/**",
+    ".mvn/**",
+    "*.class",
+    "*.jar"
+  ],
+  "gaps": [],
+  "nextSteps": [
+    "补充 Service 层单元测试",
+    "添加 Controller 层集成测试",
+    "添加 OpenAPI/Swagger 注解生成 API 文档",
+    "考虑添加纹样全文搜索功能",
+    "为常用查询添加数据库索引",
+    "实现密码强度验证",
+    "添加登录失败次数限制",
+    "敏感操作添加审计日志"
+  ]
+}

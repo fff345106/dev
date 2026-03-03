@@ -2,6 +2,9 @@ package com.example.hello.controller;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -85,35 +88,35 @@ public class AuditController {
      * 获取待审核列表
      */
     @GetMapping("/pending")
-    public ResponseEntity<List<PatternPending>> findPending() {
-        return ResponseEntity.ok(auditService.findPending());
+    public ResponseEntity<Page<PatternPending>> findPending(@PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(auditService.findPending(pageable));
     }
 
     /**
      * 获取所有审核记录
      */
     @GetMapping
-    public ResponseEntity<List<PatternPending>> findAll() {
-        return ResponseEntity.ok(auditService.findAll());
+    public ResponseEntity<Page<PatternPending>> findAll(@PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(auditService.findAll(pageable));
     }
 
     /**
      * 按状态查询
      */
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<PatternPending>> findByStatus(@PathVariable String status) {
+    public ResponseEntity<Page<PatternPending>> findByStatus(@PathVariable String status, @PageableDefault(size = 20) Pageable pageable) {
         AuditStatus auditStatus = AuditStatus.valueOf(status.toUpperCase());
-        return ResponseEntity.ok(auditService.findByStatus(auditStatus));
+        return ResponseEntity.ok(auditService.findByStatus(auditStatus, pageable));
     }
 
     /**
      * 查询我的提交记录
      */
     @GetMapping("/my")
-    public ResponseEntity<List<PatternPending>> findMySubmissions(
-            @RequestHeader("Authorization") String token) {
+    public ResponseEntity<Page<PatternPending>> findMySubmissions(
+            @RequestHeader("Authorization") String token, @PageableDefault(size = 20) Pageable pageable) {
         Long userId = getUserIdFromToken(token);
-        return ResponseEntity.ok(auditService.findBySubmitter(userId));
+        return ResponseEntity.ok(auditService.findBySubmitter(userId, pageable));
     }
 
     /**

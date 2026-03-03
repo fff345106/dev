@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -14,8 +15,13 @@ import com.example.hello.enums.AuditStatus;
 
 public interface PatternPendingRepository extends JpaRepository<PatternPending, Long> {
     List<PatternPending> findByStatus(AuditStatus status);
+    Page<PatternPending> findByStatus(AuditStatus status, Pageable pageable);
+
     List<PatternPending> findBySubmitterId(Long submitterId);
+    Page<PatternPending> findBySubmitterId(Long submitterId, Pageable pageable);
+
     List<PatternPending> findBySubmitterIdAndStatus(Long submitterId, AuditStatus status);
+    Page<PatternPending> findBySubmitterIdAndStatus(Long submitterId, AuditStatus status, Pageable pageable);
     
     long countByStatus(AuditStatus status);
     

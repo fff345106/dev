@@ -1,7 +1,8 @@
 package com.example.hello.controller;
 
-import java.util.List;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,8 +34,8 @@ public class PatternController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Pattern>> findAll() {
-        return ResponseEntity.ok(patternService.findAll());
+    public ResponseEntity<Page<Pattern>> findAll(@PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(patternService.findAll(pageable));
     }
 
     @GetMapping("/{id}")
@@ -59,23 +60,23 @@ public class PatternController {
     }
 
     @GetMapping("/category/{mainCategory}")
-    public ResponseEntity<List<Pattern>> findByMainCategory(@PathVariable String mainCategory) {
-        return ResponseEntity.ok(patternService.findByMainCategory(mainCategory));
+    public ResponseEntity<Page<Pattern>> findByMainCategory(@PathVariable String mainCategory, @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(patternService.findByMainCategory(mainCategory, pageable));
     }
 
     @GetMapping("/style/{style}")
-    public ResponseEntity<List<Pattern>> findByStyle(@PathVariable String style) {
-        return ResponseEntity.ok(patternService.findByStyle(style));
+    public ResponseEntity<Page<Pattern>> findByStyle(@PathVariable String style, @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(patternService.findByStyle(style, pageable));
     }
 
     @GetMapping("/region/{region}")
-    public ResponseEntity<List<Pattern>> findByRegion(@PathVariable String region) {
-        return ResponseEntity.ok(patternService.findByRegion(region));
+    public ResponseEntity<Page<Pattern>> findByRegion(@PathVariable String region, @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(patternService.findByRegion(region, pageable));
     }
 
     @GetMapping("/period/{period}")
-    public ResponseEntity<List<Pattern>> findByPeriod(@PathVariable String period) {
-        return ResponseEntity.ok(patternService.findByPeriod(period));
+    public ResponseEntity<Page<Pattern>> findByPeriod(@PathVariable String period, @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(patternService.findByPeriod(period, pageable));
     }
 
     @GetMapping("/{id}/download")
