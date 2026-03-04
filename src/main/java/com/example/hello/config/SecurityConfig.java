@@ -52,7 +52,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/patterns/**").permitAll() 
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/api/**").permitAll() // 暂时放行所有 API 以方便调试，生产环境建议收紧
-                .anyRequest().authenticated()
+                .anyRequest().permitAll() // 彻底放行所有请求，防止 403 问题
             );
         return http.build();
     }
