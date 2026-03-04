@@ -271,6 +271,14 @@ public class AuditService {
             throw new RuntimeException("无删除权限");
         }
 
+        // 普通用户只能删除 PENDING 或 REJECTED 状态的记录
+        // 已通过的记录是审计历史，普通用户不可删
+        if (!isAdmin) {
+            if (pending.getStatus() == AuditStatus.APPROVED) {
+                throw new RuntimeException("无法删除已通过审核的记录");
+            }
+        }
+
         // 删除关联的临时图片
         if (pending.getImageUrl() != null && !pending.getImageUrl().isEmpty()) {
             try {
@@ -281,6 +289,21 @@ public class AuditService {
         }
 
         pendingRepository.deleteById(id);
+    }
+
+    /**
+     * 批量删除待审核记录
+     */
+    @Transactional
+    public void batchDelete(List<Long> ids, Long userId) {
+        for (Long id : ids) {
+            try {
+                delete(id, userId);
+            } catch (Exception e) {
+                // 忽略单个删除失败，继续删除下一个
+                System.err.println("Failed to delete audit record " + id + ": " + e.getMessage());
+            }
+        }
     }
 
     /**

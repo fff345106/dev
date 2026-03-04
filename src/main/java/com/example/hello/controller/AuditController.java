@@ -149,6 +149,18 @@ public class AuditController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * 批量删除待审核记录
+     */
+    @PostMapping("/batch-delete")
+    public ResponseEntity<Void> batchDelete(
+            @RequestBody java.util.List<Long> ids,
+            @RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        auditService.batchDelete(ids, userId);
+        return ResponseEntity.ok().build();
+    }
+
     private Long getUserIdFromToken(String token) {
         String jwt = token.replace("Bearer ", "");
         return jwtUtil.extractUserId(jwt);

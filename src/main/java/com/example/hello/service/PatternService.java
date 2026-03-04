@@ -98,16 +98,10 @@ public class PatternService {
         Pattern pattern = findById(id);
         
         // 权限检查
-        // 如果是普通用户（录入员），只能删除待审核(PENDING)或已拒绝(REJECTED)的纹样
-        // 已通过(APPROVED)的纹样只有管理员和超级管理员可以删除
-        if (role == com.example.hello.enums.UserRole.USER) {
-            String status = pattern.getStatus();
-            // 兼容旧数据，status可能为null，默认为APPROVED
-            // 只有 PENDING 和 REJECTED 状态可以被普通用户删除
-            boolean canDelete = "PENDING".equals(status) || "REJECTED".equals(status);
-            if (!canDelete) {
-                throw new RuntimeException("普通用户只能删除待审核或已拒绝的纹样");
-            }
+        // 正式纹样表只有管理员和超级管理员可以删除
+        // 普通用户无权删除正式纹样
+        if (role == com.example.hello.enums.UserRole.USER || role == com.example.hello.enums.UserRole.GUEST) {
+            throw new RuntimeException("无权删除正式纹样");
         }
         
         // 删除关联的图片文件
