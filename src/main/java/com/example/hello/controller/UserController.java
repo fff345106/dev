@@ -66,8 +66,13 @@ public class UserController {
      * 获取所有用户列表（仅超级管理员可操作）
      */
     @GetMapping
-    public ResponseEntity<?> getAllUsers(@RequestHeader("Authorization") String token, @PageableDefault(size = 20) Pageable pageable) {
+    public ResponseEntity<?> getAllUsers(
+            @RequestHeader(value = "Authorization", required = false) String token, 
+            @PageableDefault(size = 20) Pageable pageable) {
         try {
+            if (token == null || token.isEmpty()) {
+                return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
+            }
             Long operatorUserId = getUserIdFromToken(token);
             return ResponseEntity.ok(userService.getAllUsers(operatorUserId, pageable));
         } catch (RuntimeException e) {
@@ -82,8 +87,11 @@ public class UserController {
     public ResponseEntity<?> setUserRole(
             @PathVariable Long userId,
             @RequestBody Map<String, String> request,
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader(value = "Authorization", required = false) String token) {
         try {
+            if (token == null || token.isEmpty()) {
+                return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
+            }
             Long operatorUserId = getUserIdFromToken(token);
             String roleStr = request.get("role");
             if (roleStr == null || roleStr.isEmpty()) {
