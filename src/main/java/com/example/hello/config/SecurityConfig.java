@@ -27,12 +27,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 允许指定的前端域名和本地开发环境
-        configuration.setAllowedOrigins(Arrays.asList(
-            "https://imkdthknufzh.sealosbja.site",
-            "http://localhost:3000",
-            "http://localhost:8080"
-        ));
+        // 允许所有来源，解决跨域问题
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setExposedHeaders(Arrays.asList("*"));
@@ -51,11 +47,11 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/auth/**", "/auth/**").permitAll() // 兼容 /auth/login 和 /api/auth/login
                 .requestMatchers("/api/images/**").permitAll()
                 .requestMatchers("/api/patterns/**").permitAll() 
                 .requestMatchers("/actuator/**").permitAll()
-                .requestMatchers("/api/**").permitAll() // 暂时放行所有 API 以方便调试，生产环境建议收紧
+                .requestMatchers("/api/**").permitAll()
                 .anyRequest().authenticated()
             );
         return http.build();

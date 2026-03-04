@@ -14,7 +14,7 @@ import com.example.hello.service.AuthService;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping({"/api/auth", "/auth"}) // 同时支持 /api/auth 和 /auth 路径
 public class AuthController {
     private final AuthService authService;
 
