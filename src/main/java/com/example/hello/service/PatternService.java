@@ -109,6 +109,20 @@ public class PatternService {
         patternRepository.deleteById(id);
     }
 
+    /**
+     * 批量删除纹样
+     */
+    public void batchDelete(List<Long> ids) {
+        for (Long id : ids) {
+            try {
+                delete(id);
+            } catch (Exception e) {
+                // 忽略单个删除失败，继续删除下一个
+                System.err.println("Failed to delete pattern " + id + ": " + e.getMessage());
+            }
+        }
+    }
+
     public List<Pattern> findByMainCategory(String mainCategory) {
         return patternRepository.findByMainCategory(mainCategory.toUpperCase());
     }

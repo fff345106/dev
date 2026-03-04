@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.hello.dto.PatternRequest;
 import com.example.hello.entity.Pattern;
 import com.example.hello.service.PatternService;
+import com.example.hello.util.JwtUtil;
 
 import jakarta.validation.Valid;
 
@@ -23,9 +24,11 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/patterns")
 public class PatternController {
     private final PatternService patternService;
+    private final JwtUtil jwtUtil;
 
-    public PatternController(PatternService patternService) {
+    public PatternController(PatternService patternService, JwtUtil jwtUtil) {
         this.patternService = patternService;
+        this.jwtUtil = jwtUtil;
     }
 
     @PostMapping
@@ -54,9 +57,55 @@ public class PatternController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        checkPermission(token);
         patternService.delete(id);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 批量删除纹样
+     */
+    @PostMapping("/batch-delete")
+    public ResponseEntity<Void> batchDelete(
+            @RequestBody java.util.List<Long> ids,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        checkPermission(token);
+        patternService.batchDelete(ids);
+        return ResponseEntity.ok().build();
+    }
+
+    private void checkPermission(String token) {
+        if (token == null || token.isEmpty()) {
+            throw new RuntimeException("未提供认证令牌");
+        }
+        try {
+            String jwt = token.replace("Bearer ", "");
+            // 简单的角色验证，更严谨的应该在 SecurityConfig 中配置或使用 @PreAuthorize
+            // 这里为了快速实现且不改动太多配置，手动解析
+            // 注意：JwtUtil 需要能处理解析异常
+            // 这里我们通过反射获取 JwtUtil 的 extractRole 方法，或者直接调用
+            // 假设 JwtUtil 已经注入并可用
+            
+            // 下面这行代码依赖于 JwtUtil 的实现细节，如果 extractRole 抛出异常会被捕获
+            // 为了获取 role，我们需要调用 jwtUtil.extractRole(jwt)
+            // 但 extractRole 返回 String，我们需要转成 UserRole
+            
+            // 重新解析 Token 以获取 Claims (如果 JwtUtil 没有公开 extractClaims)
+            // 其实可以直接调用 jwtUtil.extractRole(jwt)
+            String roleStr = jwtUtil.extractRole(jwt);
+            if (roleStr == null) {
+                throw new RuntimeException("无效的角色信息");
+            }
+            UserRole role = UserRole.valueOf(roleStr);
+            if (role == UserRole.GUEST) {
+                throw new RuntimeException("游客无权执行此操作");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("权限验证失败: " + e.getMessage());
+        }
     }
 
     @GetMapping("/category/{mainCategory}")
