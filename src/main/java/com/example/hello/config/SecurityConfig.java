@@ -27,7 +27,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 允许所有来源，解决跨域问题
+        // 允许所有来源，使用 allowedOriginPatterns 来支持 allowCredentials
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
@@ -47,11 +47,11 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/**", "/auth/**").permitAll() // 兼容 /auth/login 和 /api/auth/login
+                .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/images/**").permitAll()
                 .requestMatchers("/api/patterns/**").permitAll() 
                 .requestMatchers("/actuator/**").permitAll()
-                .requestMatchers("/api/**").permitAll()
+                .requestMatchers("/api/**").permitAll() // 暂时放行所有 API 以方便调试，生产环境建议收紧
                 .anyRequest().authenticated()
             );
         return http.build();
