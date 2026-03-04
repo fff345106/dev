@@ -60,6 +60,14 @@ public class UserService {
      * 获取用户信息
      */
     public User getUserById(Long userId) {
+        if (userId < 0) {
+            // 游客用户，构造一个虚拟用户对象返回
+            User guest = new User();
+            guest.setId(userId);
+            guest.setUsername("Guest");
+            guest.setRole(UserRole.GUEST);
+            return guest;
+        }
         return userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
     }
