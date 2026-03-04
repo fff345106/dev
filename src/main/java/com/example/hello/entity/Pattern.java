@@ -56,6 +56,9 @@ public class Pattern {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "status", length = 20)
+    private String status = "APPROVED"; // 默认为已通过，兼容旧数据。实际上应该用枚举，但为了简单这里用字符串或者改用枚举
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -94,4 +97,6 @@ public class Pattern {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

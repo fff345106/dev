@@ -94,8 +94,21 @@ public class PatternService {
         return patternRepository.save(pattern);
     }
 
-    public void delete(Long id) {
+    public void delete(Long id, com.example.hello.enums.UserRole role) {
         Pattern pattern = findById(id);
+        
+        // 权限检查
+        // 如果是普通用户（录入员），只能删除待审核(PENDING)或已拒绝(REJECTED)的纹样
+        // 已通过(APPROVED)的纹样只有管理员和超级管理员可以删除
+        if (role == com.example.hello.enums.UserRole.USER) {
+            String status = pattern.getStatus();
+            // 兼容旧数据，status可能为null，默认为APPROVED
+            // 只有 PENDING 和 REJECTED 状态可以被普通用户删除
+            boolean canDelete = "PENDING".equals(status) || "REJECTED".equals(status);
+            if (!canDelete) {
+                throw new RuntimeException("普通用户只能删除待审核或已拒绝的纹样");
+            }
+        }
         
         // 删除关联的图片文件
         if (pattern.getImageUrl() != null && !pattern.getImageUrl().isEmpty()) {
@@ -108,19 +121,29 @@ public class PatternService {
         
         patternRepository.deleteById(id);
     }
+    
+    // 兼容旧接口，供内部调用（如果有）
+    public void delete(Long id) {
+        delete(id, com.example.hello.enums.UserRole.SUPER_ADMIN); // 默认最高权限
+    }
 
     /**
      * 批量删除纹样
      */
-    public void batchDelete(List<Long> ids) {
+    public void batchDelete(List<Long> ids, com.example.hello.enums.UserRole role) {
         for (Long id : ids) {
             try {
-                delete(id);
+                delete(id, role);
             } catch (Exception e) {
                 // 忽略单个删除失败，继续删除下一个
                 System.err.println("Failed to delete pattern " + id + ": " + e.getMessage());
             }
         }
+    }
+    
+    // 兼容旧接口
+    public void batchDelete(List<Long> ids) {
+        batchDelete(ids, com.example.hello.enums.UserRole.SUPER_ADMIN);
     }
 
     public List<Pattern> findByMainCategory(String mainCategory) {
