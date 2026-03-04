@@ -10,6 +10,7 @@ public class HelloApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(HelloApplication.class, args);
+        System.out.println("Application started successfully! Version: 2026-03-04-GuestLogin");
     }
 
 }
