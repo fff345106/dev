@@ -40,6 +40,8 @@ public interface PatternPendingRepository extends JpaRepository<PatternPending, 
 
     Optional<PatternPending> findByPatternCode(String patternCode);
 
+    long deleteByPatternCode(String patternCode);
+
     // 查询指定时间之前创建的记录（用于定时清理）
     List<PatternPending> findByCreatedAtBefore(LocalDateTime cutoffTime);
 

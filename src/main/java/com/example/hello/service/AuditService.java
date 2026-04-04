@@ -1,9 +1,7 @@
 package com.example.hello.service;
 
 import java.io.IOException;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -18,7 +16,6 @@ import com.example.hello.entity.Pattern;
 import com.example.hello.entity.PatternPending;
 import com.example.hello.entity.User;
 import com.example.hello.enums.AuditStatus;
-import com.example.hello.enums.PatternCodeEnum;
 import com.example.hello.enums.UserRole;
 import com.example.hello.repository.PatternPendingRepository;
 import com.example.hello.repository.PatternRepository;
@@ -30,15 +27,24 @@ public class AuditService {
     private final PatternRepository patternRepository;
     private final UserRepository userRepository;
     private final ImageService imageService;
+    private final PatternHashService patternHashService;
+    private final BlockchainAnchorService blockchainAnchorService;
+    private final PatternCodeService patternCodeService;
 
     public AuditService(PatternPendingRepository pendingRepository,
                         PatternRepository patternRepository,
                         UserRepository userRepository,
-                        ImageService imageService) {
+                        ImageService imageService,
+                        PatternHashService patternHashService,
+                        BlockchainAnchorService blockchainAnchorService,
+                        PatternCodeService patternCodeService) {
         this.pendingRepository = pendingRepository;
         this.patternRepository = patternRepository;
         this.userRepository = userRepository;
         this.imageService = imageService;
+        this.patternHashService = patternHashService;
+        this.blockchainAnchorService = blockchainAnchorService;
+        this.patternCodeService = patternCodeService;
     }
 
     /**
@@ -46,52 +52,24 @@ public class AuditService {
      */
     @Transactional
     public PatternPending submit(PatternRequest request, Long submitterId) {
-        // 验证代码
-        validateCodes(request);
+        patternCodeService.validateRequest(request);
+        PatternCodeService.NormalizedPatternCodes normalizedCodes = patternCodeService.normalizeRequest(request);
 
         User submitter = userRepository.findById(submitterId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
         PatternPending pending = new PatternPending();
         pending.setDescription(request.getDescription());
-        pending.setMainCategory(request.getMainCategory().toUpperCase());
-        pending.setSubCategory(request.getSubCategory().toUpperCase());
-        pending.setStyle(request.getStyle().toUpperCase());
-        pending.setRegion(request.getRegion().toUpperCase());
-        pending.setPeriod(request.getPeriod().toUpperCase());
+        pending.setMainCategory(normalizedCodes.mainCategory());
+        pending.setSubCategory(normalizedCodes.subCategory());
+        pending.setStyle(normalizedCodes.style());
+        pending.setRegion(normalizedCodes.region());
+        pending.setPeriod(normalizedCodes.period());
         pending.setImageUrl(request.getImageUrl());
         pending.setSubmitter(submitter);
         pending.setStatus(AuditStatus.PENDING);
 
-        // 生成编码（优先回收被驳回的编码）
-        String dateCode = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-        pending.setDateCode(dateCode);
-
-        // 尝试回收被驳回的编码
-        List<PatternPending> recyclable = pendingRepository.findRecyclableCodes(dateCode);
-        if (!recyclable.isEmpty()) {
-            // 回收第一个被驳回的编码
-            PatternPending recycled = recyclable.get(0);
-            pending.setSequenceNumber(recycled.getSequenceNumber());
-            // 清空被回收记录的编码
-            recycled.setPatternCode(null);
-            recycled.setSequenceNumber(null);
-            pendingRepository.save(recycled);
-        } else {
-            // 没有可回收的，生成新序列号
-            Integer maxSeq = pendingRepository.findMaxActiveSequenceNumberByDateCode(dateCode);
-            // 同时检查正式表的最大序列号
-            Integer maxPatternSeq = patternRepository.findMaxSequenceNumberByDateCode(dateCode);
-            int nextSeq = Math.max(
-                maxSeq == null ? 0 : maxSeq,
-                maxPatternSeq == null ? 0 : maxPatternSeq
-            ) + 1;
-            pending.setSequenceNumber(nextSeq);
-        }
-
-        // 生成完整编码
-        pending.setPatternCode(generatePatternCode(pending));
-
+        patternCodeService.assignPendingCode(pending);
         return pendingRepository.save(pending);
     }
 
@@ -174,21 +152,22 @@ public class AuditService {
             throw new RuntimeException("只能重新提交自己的记录");
         }
 
-        // 验证代码
-        validateCodes(request);
+        patternCodeService.validateRequest(request);
+        PatternCodeService.NormalizedPatternCodes normalizedCodes = patternCodeService.normalizeRequest(request);
 
         pending.setDescription(request.getDescription());
-        pending.setMainCategory(request.getMainCategory().toUpperCase());
-        pending.setSubCategory(request.getSubCategory().toUpperCase());
-        pending.setStyle(request.getStyle().toUpperCase());
-        pending.setRegion(request.getRegion().toUpperCase());
-        pending.setPeriod(request.getPeriod().toUpperCase());
+        pending.setMainCategory(normalizedCodes.mainCategory());
+        pending.setSubCategory(normalizedCodes.subCategory());
+        pending.setStyle(normalizedCodes.style());
+        pending.setRegion(normalizedCodes.region());
+        pending.setPeriod(normalizedCodes.period());
         pending.setImageUrl(request.getImageUrl());
         pending.setStatus(AuditStatus.PENDING);
         pending.setAuditor(null);
         pending.setAuditTime(null);
         pending.setRejectReason(null);
 
+        patternCodeService.ensurePendingCode(pending);
         return pendingRepository.save(pending);
     }
 
@@ -310,29 +289,7 @@ public class AuditService {
      * 确保待审核记录有完整的编码（处理旧数据丢失编码的情况）
      */
     private void ensureCodes(PatternPending pending) {
-        if (pending.getDateCode() != null && !pending.getDateCode().isEmpty()) {
-            return;
-        }
-
-        // 生成日期代码
-        String dateCode = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-        pending.setDateCode(dateCode);
-
-        // 生成序列号 (直接追加到当天末尾)
-        Integer maxSeq = pendingRepository.findMaxActiveSequenceNumberByDateCode(dateCode);
-        Integer maxPatternSeq = patternRepository.findMaxSequenceNumberByDateCode(dateCode);
-        
-        int nextSeq = Math.max(
-            maxSeq == null ? 0 : maxSeq,
-            maxPatternSeq == null ? 0 : maxPatternSeq
-        ) + 1;
-        
-        pending.setSequenceNumber(nextSeq);
-        
-        // 生成完整编码
-        pending.setPatternCode(generatePatternCode(pending));
-        
-        // 保存更新后的待审核记录
+        patternCodeService.ensurePendingCode(pending);
         pendingRepository.save(pending);
     }
 
@@ -346,6 +303,9 @@ public class AuditService {
         // 安全检查：如果编码仍然缺失，抛出异常而不是让SQL报错
         if (pending.getDateCode() == null || pending.getDateCode().isEmpty()) {
             throw new RuntimeException("无法生成纹样编码: dateCode 为空 (ID: " + pending.getId() + ")");
+        }
+        if (pending.getImageUrl() == null || pending.getImageUrl().isEmpty()) {
+            throw new RuntimeException("审核通过失败：纹样图片不能为空");
         }
 
         Pattern pattern = new Pattern();
@@ -363,53 +323,45 @@ public class AuditService {
         pattern.setPatternCode(pending.getPatternCode());
 
         // 将图片从临时目录移动到正式目录
-        if (pattern.getImageUrl() != null && !pattern.getImageUrl().isEmpty()) {
-            try {
-                String newUrl = imageService.moveToFormal(pattern.getImageUrl(), pattern.getPatternCode());
-                pattern.setImageUrl(newUrl);
-                // 同步更新 pending 记录的图片URL
-                pending.setImageUrl(newUrl);
-                pendingRepository.save(pending);
-            } catch (IOException e) {
-                // 忽略
-            }
+        try {
+            String newUrl = imageService.moveToFormal(pattern.getImageUrl(), pattern.getPatternCode());
+            pattern.setImageUrl(newUrl);
+            // 同步更新 pending 记录的图片URL
+            pending.setImageUrl(newUrl);
+            pendingRepository.save(pending);
+        } catch (IOException e) {
+            throw new RuntimeException("审核通过失败：移动正式图片失败: " + e.getMessage(), e);
+        }
+
+        // 1) 计算哈希并先落库
+        String imageHash = patternHashService.computeSha256ByImageUrl(pattern.getImageUrl());
+        pattern.setImageHash(imageHash);
+        pattern.setHashAlgorithm(patternHashService.hashAlgorithm());
+        pattern.setChainStatus("PENDING");
+        pattern = patternRepository.save(pattern);
+
+        // 2) 上链并回填凭证（失败不影响正式入库）
+        if (!blockchainAnchorService.isEnabled()) {
+            pattern.setChainStatus("SKIPPED");
+            return patternRepository.save(pattern);
+        }
+
+        try {
+            BlockchainAnchorService.AnchorResult anchorResult = blockchainAnchorService.anchor(
+                    pattern.getPatternCode(),
+                    pattern.getImageHash(),
+                    pattern.getImageUrl());
+
+            pattern.setChainTxHash(anchorResult.txHash());
+            pattern.setChainBlockNumber(anchorResult.blockNumber());
+            pattern.setChainTimestamp(anchorResult.blockTimestamp());
+            pattern.setChainStatus(anchorResult.status());
+        } catch (Exception e) {
+            pattern.setChainStatus("FAILED");
+            System.err.println("区块链存证失败，已保留正式入库: " + e.getMessage());
         }
 
         return patternRepository.save(pattern);
     }
 
-    private String generatePatternCode(PatternPending pending) {
-        return String.format("%s-%s-%s-%s-%s-%s-%03d",
-                pending.getMainCategory(),
-                pending.getSubCategory(),
-                pending.getStyle(),
-                pending.getRegion(),
-                pending.getPeriod(),
-                pending.getDateCode(),
-                pending.getSequenceNumber());
-    }
-
-    private void validateCodes(PatternRequest request) {
-        String mainCategory = request.getMainCategory().toUpperCase();
-        String subCategory = request.getSubCategory().toUpperCase();
-        String style = request.getStyle().toUpperCase();
-        String region = request.getRegion().toUpperCase();
-        String period = request.getPeriod().toUpperCase();
-
-        if (!PatternCodeEnum.MainCategory.isValid(mainCategory)) {
-            throw new IllegalArgumentException("无效的主类别代码: " + mainCategory);
-        }
-        if (!PatternCodeEnum.isValidSubCategory(mainCategory, subCategory)) {
-            throw new IllegalArgumentException("无效的子类别代码: " + subCategory);
-        }
-        if (!PatternCodeEnum.Style.isValid(style)) {
-            throw new IllegalArgumentException("无效的风格代码: " + style);
-        }
-        if (!PatternCodeEnum.Region.isValid(region)) {
-            throw new IllegalArgumentException("无效的地区代码: " + region);
-        }
-        if (!PatternCodeEnum.Period.isValid(period)) {
-            throw new IllegalArgumentException("无效的时期代码: " + period);
-        }
-    }
 }

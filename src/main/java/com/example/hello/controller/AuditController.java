@@ -16,11 +16,17 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.hello.dto.AiBatchConfirmRequest;
+import com.example.hello.dto.AiBatchPreviewRequest;
+import com.example.hello.dto.AiBatchPreviewResponse;
+import com.example.hello.dto.AiBatchSubmitRequest;
+import com.example.hello.dto.AiBatchSubmitResponse;
 import com.example.hello.dto.AuditRequest;
 import com.example.hello.dto.BatchAuditRequest;
 import com.example.hello.dto.PatternRequest;
 import com.example.hello.entity.PatternPending;
 import com.example.hello.enums.AuditStatus;
+import com.example.hello.service.AiBatchEntryService;
 import com.example.hello.service.AuditService;
 import com.example.hello.util.JwtUtil;
 
@@ -30,10 +36,12 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/audit")
 public class AuditController {
     private final AuditService auditService;
+    private final AiBatchEntryService aiBatchEntryService;
     private final JwtUtil jwtUtil;
 
-    public AuditController(AuditService auditService, JwtUtil jwtUtil) {
+    public AuditController(AuditService auditService, AiBatchEntryService aiBatchEntryService, JwtUtil jwtUtil) {
         this.auditService = auditService;
+        this.aiBatchEntryService = aiBatchEntryService;
         this.jwtUtil = jwtUtil;
     }
 
@@ -46,6 +54,37 @@ public class AuditController {
             @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(auditService.submit(request, userId));
+    }
+
+    /**
+     * AI 批量识别预览
+     */
+    @PostMapping("/ai-batch-preview")
+    public ResponseEntity<AiBatchPreviewResponse> aiBatchPreview(
+            @Valid @RequestBody AiBatchPreviewRequest request) {
+        return ResponseEntity.ok(aiBatchEntryService.preview(request));
+    }
+
+    /**
+     * AI 批量确认提交纹样待审核
+     */
+    @PostMapping("/ai-batch-confirm")
+    public ResponseEntity<AiBatchSubmitResponse> aiBatchConfirm(
+            @Valid @RequestBody AiBatchConfirmRequest request,
+            @RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        return ResponseEntity.ok(aiBatchEntryService.confirm(request, userId));
+    }
+
+    /**
+     * AI 批量提交纹样待审核（兼容旧入口）
+     */
+    @PostMapping("/ai-batch-submit")
+    public ResponseEntity<AiBatchSubmitResponse> aiBatchSubmit(
+            @Valid @RequestBody AiBatchSubmitRequest request,
+            @RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        return ResponseEntity.ok(aiBatchEntryService.submit(request, userId));
     }
 
     /**

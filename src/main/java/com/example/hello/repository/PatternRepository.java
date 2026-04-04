@@ -6,11 +6,12 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import com.example.hello.entity.Pattern;
 
-public interface PatternRepository extends JpaRepository<Pattern, Long> {
+public interface PatternRepository extends JpaRepository<Pattern, Long>, JpaSpecificationExecutor<Pattern> {
     Optional<Pattern> findByPatternCode(String patternCode);
     boolean existsByPatternCode(String patternCode);
     List<Pattern> findByMainCategory(String mainCategory);

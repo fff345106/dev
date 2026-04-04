@@ -3,6 +3,8 @@ package com.example.hello.service;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +19,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -113,19 +116,46 @@ public class ImageService {
             String extension = getFileExtension(tempKey);
             String newKey = patternCode + extension;
 
-            // 复制到正式目录
-            CopyObjectRequest copyRequest = CopyObjectRequest.builder()
-                    .sourceBucket(bucket)
-                    .sourceKey(tempKey)
-                    .destinationBucket(bucket)
-                    .destinationKey(newKey)
-                    .build();
-            s3Client.copyObject(copyRequest);
+            List<String> sourceKeyCandidates = new ArrayList<>();
+            sourceKeyCandidates.add(tempKey);
+            if (!tempKey.startsWith(TEMP_FOLDER)) {
+                String fileName = tempKey.contains("/") ? tempKey.substring(tempKey.lastIndexOf("/") + 1) : tempKey;
+                sourceKeyCandidates.add(TEMP_FOLDER + fileName);
+            }
+
+            String copiedSourceKey = null;
+            S3Exception lastException = null;
+            for (String sourceKey : sourceKeyCandidates) {
+                try {
+                    CopyObjectRequest copyRequest = CopyObjectRequest.builder()
+                            .sourceBucket(bucket)
+                            .sourceKey(sourceKey)
+                            .destinationBucket(bucket)
+                            .destinationKey(newKey)
+                            .build();
+                    s3Client.copyObject(copyRequest);
+                    copiedSourceKey = sourceKey;
+                    break;
+                } catch (S3Exception e) {
+                    lastException = e;
+                    if (e.statusCode() != 404) {
+                        throw e;
+                    }
+                }
+            }
+
+            if (copiedSourceKey == null) {
+                if (objectExists(newKey)) {
+                    return baseUrl + "/" + newKey;
+                }
+                throw lastException == null ? new IOException("移动图片失败: 找不到源文件")
+                        : new IOException("移动图片失败: " + lastException.getMessage(), lastException);
+            }
 
             // 删除临时文件
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                     .bucket(bucket)
-                    .key(tempKey)
+                    .key(copiedSourceKey)
                     .build();
             s3Client.deleteObject(deleteRequest);
 
@@ -208,14 +238,28 @@ public class ImageService {
      * 从URL中提取对象存储的key
      */
     private String extractKeyFromUrl(String url) {
-        // URL格式: https://objectstorageapi.bja.sealos.run/36vibe9k-images/temp/xxx.png
-        // 或: https://objectstorageapi.bja.sealos.run/36vibe9k-images/xxx.png
+        try {
+            URI uri = URI.create(url);
+            String path = uri.getPath();
+            if (path != null && !path.isEmpty()) {
+                String normalized = path.startsWith("/") ? path.substring(1) : path;
+                String bucketPrefix = bucket + "/";
+                if (normalized.startsWith(bucketPrefix)) {
+                    normalized = normalized.substring(bucketPrefix.length());
+                }
+                if (!normalized.isEmpty()) {
+                    return normalized;
+                }
+            }
+        } catch (Exception ignored) {
+            // ignore and fallback
+        }
+
         String bucketPath = "/" + bucket + "/";
         int index = url.indexOf(bucketPath);
         if (index != -1) {
             return url.substring(index + bucketPath.length());
         }
-        // 兜底：取最后一个/后的内容
         return url.substring(url.lastIndexOf("/") + 1);
     }
 
@@ -224,5 +268,21 @@ public class ImageService {
             return ".jpg";
         }
         return filename.substring(filename.lastIndexOf("."));
+    }
+
+    private boolean objectExists(String key) {
+        try {
+            HeadObjectRequest request = HeadObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build();
+            s3Client.headObject(request);
+            return true;
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
     }
 }

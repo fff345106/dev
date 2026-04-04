@@ -50,6 +50,24 @@ public class Pattern {
     @Column(name = "image_url")
     private String imageUrl;  // 纹样图片URL
 
+    @Column(name = "image_hash", length = 64)
+    private String imageHash;  // 图片SHA-256哈希（十六进制）
+
+    @Column(name = "hash_algorithm", length = 20)
+    private String hashAlgorithm;  // 哈希算法，固定为SHA-256
+
+    @Column(name = "chain_tx_hash", length = 100)
+    private String chainTxHash;  // 上链交易哈希
+
+    @Column(name = "chain_block_number")
+    private Long chainBlockNumber;  // 链上区块高度
+
+    @Column(name = "chain_timestamp")
+    private LocalDateTime chainTimestamp;  // 链上区块时间
+
+    @Column(name = "chain_status", length = 20)
+    private String chainStatus;  // 链上状态：ANCHORED/FAILED
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -93,6 +111,18 @@ public class Pattern {
     public void setPatternCode(String patternCode) { this.patternCode = patternCode; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getImageHash() { return imageHash; }
+    public void setImageHash(String imageHash) { this.imageHash = imageHash; }
+    public String getHashAlgorithm() { return hashAlgorithm; }
+    public void setHashAlgorithm(String hashAlgorithm) { this.hashAlgorithm = hashAlgorithm; }
+    public String getChainTxHash() { return chainTxHash; }
+    public void setChainTxHash(String chainTxHash) { this.chainTxHash = chainTxHash; }
+    public Long getChainBlockNumber() { return chainBlockNumber; }
+    public void setChainBlockNumber(Long chainBlockNumber) { this.chainBlockNumber = chainBlockNumber; }
+    public LocalDateTime getChainTimestamp() { return chainTimestamp; }
+    public void setChainTimestamp(LocalDateTime chainTimestamp) { this.chainTimestamp = chainTimestamp; }
+    public String getChainStatus() { return chainStatus; }
+    public void setChainStatus(String chainStatus) { this.chainStatus = chainStatus; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

@@ -1,6 +1,7 @@
 package com.example.hello.service;
 
 import com.example.hello.dto.AuthResponse;
+import com.example.hello.dto.ForgotPasswordRequest;
 import com.example.hello.dto.LoginRequest;
 import com.example.hello.dto.RegisterRequest;
 import com.example.hello.entity.User;
@@ -9,6 +10,7 @@ import com.example.hello.repository.UserRepository;
 import com.example.hello.util.JwtUtil;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -17,13 +19,17 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final InvitationCodeService invitationCodeService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil,
+            InvitationCodeService invitationCodeService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.invitationCodeService = invitationCodeService;
     }
 
+    @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new RuntimeException("两次密码不一致");
@@ -31,6 +37,9 @@ public class AuthService {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("用户名已存在");
         }
+
+        invitationCodeService.consumeCode(request.getInvitationCode());
+
         User user = new User(request.getUsername(), passwordEncoder.encode(request.getPassword()));
         // 默认为录入员，除非第一个注册的可能是管理员（根据业务需求调整）
         user.setRole(UserRole.USER);
@@ -46,6 +55,20 @@ public class AuthService {
         }
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole().name());
         return new AuthResponse(token, "登录成功");
+    }
+
+    @Transactional
+    public AuthResponse forgotPassword(ForgotPasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new RuntimeException("两次密码不一致");
+        }
+
+        User user = userRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        return new AuthResponse(null, "密码重置成功");
     }
 
     public AuthResponse guestLogin() {

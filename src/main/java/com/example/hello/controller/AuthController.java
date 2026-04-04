@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.hello.dto.AuthResponse;
+import com.example.hello.dto.ForgotPasswordRequest;
 import com.example.hello.dto.LoginRequest;
 import com.example.hello.dto.RegisterRequest;
 import com.example.hello.service.AuthService;
@@ -30,6 +31,11 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<AuthResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return ResponseEntity.ok(authService.forgotPassword(request));
     }
 
     /**

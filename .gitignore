@@ -9,3 +9,6 @@ target/
 *.iml
 .idea/
 .DS_Store
+.codebuddy/
+.claude/
+.trae/
