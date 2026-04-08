@@ -36,7 +36,7 @@ class AiPatternRecognitionServiceTest {
     }
 
     @Test
-    void recognizeByImageUrl_shouldCallCozeBotAndParseStructuredJson() throws Exception {
+    void recognizeByImageUrl_shouldCallAiApiAndParseStructuredJson() throws Exception {
         AtomicReference<String> authorization = new AtomicReference<>();
         AtomicReference<String> contentType = new AtomicReference<>();
         AtomicReference<String> requestBody = new AtomicReference<>();
@@ -71,9 +71,13 @@ class AiPatternRecognitionServiceTest {
 
         assertEquals("application/json", contentType.get());
         assertTrue(authorization.get().startsWith("Bearer "));
-        assertTrue(requestBody.get().contains("\"bot_id\":\"7621108836975968282\""));
+        assertTrue(requestBody.get().contains("\"model\":\"moonshot-v1-8k-vision-preview\""));
         assertTrue(requestBody.get().contains("\"messages\""));
-        assertTrue(requestBody.get().contains("\"content\":\"识别\\nhttps://img/a.png\""));
+        assertTrue(requestBody.get().contains("\"content\":"));
+        // 验证多模态格式：content 应该是数组，包含 text 和 image_url
+        assertTrue(requestBody.get().contains("\"type\":\"text\""));
+        assertTrue(requestBody.get().contains("\"type\":\"image_url\""));
+        assertTrue(requestBody.get().contains("\"url\":\"https://img/a.png\""));
     }
 
     @Test
@@ -100,9 +104,12 @@ class AiPatternRecognitionServiceTest {
 
         assertEquals("凤凰纹", result.getPatternName());
         assertTrue(requestBody.get().contains("\"additional_messages\""));
-        assertTrue(requestBody.get().contains("\"content_type\":\"text\""));
-        assertTrue(requestBody.get().contains("\"auto_save_history\":true"));
+        assertTrue(requestBody.get().contains("\"auto_save_history\":false"));
         assertFalse(requestBody.get().contains("\"messages\""));
+        // 验证多模态格式：V3 API 也应该使用数组格式的 content
+        assertTrue(requestBody.get().contains("\"type\":\"text\""));
+        assertTrue(requestBody.get().contains("\"type\":\"image_url\""));
+        assertTrue(requestBody.get().contains("\"url\":\"https://img/chat-api.png\""));
     }
 
     @Test
@@ -338,14 +345,14 @@ class AiPatternRecognitionServiceTest {
     }
 
     @Test
-    void recognizeByImageUrl_shouldThrowWhenCozeReturnsBusinessError() throws Exception {
+    void recognizeByImageUrl_shouldThrowWhenApiReturnsBusinessError() throws Exception {
         String baseUrl = startServer(200, "{\"code\":401,\"msg\":\"invalid token\"}", null, null, null);
 
         AiPatternRecognitionService service = createService(buildProperties(baseUrl));
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> service.recognizeByImageUrl("https://img/error.png"));
 
-        assertEquals("扣子Bot调用失败: invalid token", ex.getMessage());
+        assertEquals("AI接口调用失败: invalid token", ex.getMessage());
     }
 
     @Test
@@ -356,19 +363,20 @@ class AiPatternRecognitionServiceTest {
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> service.recognizeByImageUrl("https://img/http-error.png"));
 
-        assertEquals("扣子Bot调用失败，HTTP状态: 401，错误: unauthorized", ex.getMessage());
+        assertEquals("AI接口调用失败，HTTP状态: 401，错误: unauthorized", ex.getMessage());
     }
 
     private AiProperties buildProperties(String baseUrl) {
-        return buildProperties(baseUrl, "/openapi/v3/chat/completions");
+        return buildProperties(baseUrl, "/v1/chat/completions");
     }
 
     private AiProperties buildProperties(String baseUrl, String endpointPath) {
         AiProperties properties = new AiProperties();
         properties.setEnabled(true);
-        properties.setCozeBotId("7621108836975968282");
-        properties.setCozeSecretToken("test-secret-token");
-        properties.setCozeEndpoint(baseUrl + endpointPath);
+        properties.setApiBotId("7621108836975968282");
+        properties.setApiKey("test-secret-token");
+        properties.setApiEndpoint(baseUrl + endpointPath);
+        properties.setModel("moonshot-v1-8k-vision-preview");
         properties.setTimeoutMillis(3000);
         return properties;
     }
@@ -386,7 +394,7 @@ class AiPatternRecognitionServiceTest {
             AtomicReference<String> authorization,
             AtomicReference<String> contentType,
             AtomicReference<String> requestBody) throws IOException {
-        return startServer("/openapi/v3/chat/completions", status, responseBody, authorization, contentType, requestBody);
+        return startServer("/v1/chat/completions", status, responseBody, authorization, contentType, requestBody);
     }
 
     private String startServer(

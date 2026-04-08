@@ -1,6 +1,5 @@
 package com.example.hello.service;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,8 +47,9 @@ class InvitationCodeServiceTest {
         when(invitationCodeRepository.findByCodeForUpdate("123456")).thenReturn(Optional.of(invitationCode));
         when(invitationCodeRepository.save(invitationCode)).thenReturn(invitationCode);
 
-        assertDoesNotThrow(() -> invitationCodeService.consumeCode("123456"));
+        InvitationCodeService.CodeConsumeResult result = invitationCodeService.consumeCode("123456");
 
+        assertEquals(InvitationCodeService.CodeSource.LOCAL, result.source());
         assertTrue(invitationCode.isUsed());
         assertNotNull(invitationCode.getUsedAt());
         verify(invitationCodeRepository).save(invitationCode);
@@ -73,8 +73,9 @@ class InvitationCodeServiceTest {
         when(invitationCodeRepository.findByCodeForUpdate("654321")).thenReturn(Optional.empty());
         when(appInvitationCodeVerifier.verifyAndConsume("654321")).thenReturn(VerificationResult.consumed());
 
-        assertDoesNotThrow(() -> invitationCodeService.consumeCode("654321"));
+        InvitationCodeService.CodeConsumeResult result = invitationCodeService.consumeCode("654321");
 
+        assertEquals(InvitationCodeService.CodeSource.APP, result.source());
         verify(appInvitationCodeVerifier).verifyAndConsume("654321");
     }
 

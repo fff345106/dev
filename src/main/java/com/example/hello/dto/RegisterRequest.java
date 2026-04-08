@@ -17,7 +17,7 @@ public class RegisterRequest {
     private String confirmPassword;
 
     @NotBlank(message = "邀请码或剪艺码不能为空")
-    @Pattern(regexp = "\\d{6}", message = "邀请码或剪艺码必须为6位数字")
+    @Pattern(regexp = "(?:\\d{6}|\\d{8})", message = "邀请码或剪艺码必须为6位或8位数字")
     private String invitationCode;
 
     public String getUsername() { return username; }

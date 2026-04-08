@@ -9,6 +9,34 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "blockchain")
 public class BlockchainProperties {
     private boolean enabled;
+
+    /**
+     * 上链实现类型：ZXCHAIN_OPEN 或 EVM
+     */
+    private String provider = "ZXCHAIN_OPEN";
+
+    // ====== 至信链开放联盟链 API 配置 ======
+    private String apiBaseUrl = "https://open.zxchain.qq.com";
+    private String secretId;
+    private String secretKey;
+    private int apiTimeoutMillis = 15000;
+
+    /**
+     * 本地GO SDK HttpService地址
+     */
+    private String sdkBaseUrl = "http://127.0.0.1:30505";
+
+    /**
+     * 存证业务签名使用的私钥（用于 signByPriKey）
+     */
+    private String evidencePrivateKey;
+
+    /**
+     * 存证业务公钥（可选；为空时通过本地SDK priKey2PubKey生成）
+     */
+    private String evidencePublicKey;
+
+    // ====== 兼容原 EVM 方式配置 ======
     private String rpcUrl;
     private Long chainId;
     private String privateKey;
@@ -23,6 +51,70 @@ public class BlockchainProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
+    }
+
+    public String getApiBaseUrl() {
+        return apiBaseUrl;
+    }
+
+    public void setApiBaseUrl(String apiBaseUrl) {
+        this.apiBaseUrl = apiBaseUrl;
+    }
+
+    public String getSecretId() {
+        return secretId;
+    }
+
+    public void setSecretId(String secretId) {
+        this.secretId = secretId;
+    }
+
+    public String getSecretKey() {
+        return secretKey;
+    }
+
+    public void setSecretKey(String secretKey) {
+        this.secretKey = secretKey;
+    }
+
+    public int getApiTimeoutMillis() {
+        return apiTimeoutMillis;
+    }
+
+    public void setApiTimeoutMillis(int apiTimeoutMillis) {
+        this.apiTimeoutMillis = apiTimeoutMillis;
+    }
+
+    public String getSdkBaseUrl() {
+        return sdkBaseUrl;
+    }
+
+    public void setSdkBaseUrl(String sdkBaseUrl) {
+        this.sdkBaseUrl = sdkBaseUrl;
+    }
+
+    public String getEvidencePrivateKey() {
+        return evidencePrivateKey;
+    }
+
+    public void setEvidencePrivateKey(String evidencePrivateKey) {
+        this.evidencePrivateKey = evidencePrivateKey;
+    }
+
+    public String getEvidencePublicKey() {
+        return evidencePublicKey;
+    }
+
+    public void setEvidencePublicKey(String evidencePublicKey) {
+        this.evidencePublicKey = evidencePublicKey;
     }
 
     public String getRpcUrl() {

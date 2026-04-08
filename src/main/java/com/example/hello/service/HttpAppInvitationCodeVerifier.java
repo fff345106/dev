@@ -113,6 +113,11 @@ public class HttpAppInvitationCodeVerifier implements AppInvitationCodeVerifier 
             return VerificationResult.invalid(defaultMessage(message, INVALID_CODE_MESSAGE));
         }
 
+        Boolean canRegister = firstBoolean(payload, "can_register", "canRegister");
+        if (Boolean.FALSE.equals(canRegister)) {
+            return VerificationResult.used(defaultMessage(message, USED_CODE_MESSAGE));
+        }
+
         Boolean consumed = firstBoolean(payload, "consumed");
         if (Boolean.TRUE.equals(consumed) || Boolean.TRUE.equals(valid)) {
             return VerificationResult.consumed();

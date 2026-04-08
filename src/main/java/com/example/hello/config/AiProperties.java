@@ -7,13 +7,16 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "ai")
 public class AiProperties {
     private boolean enabled = false;
-    private String cozeBotId;
-    private String cozeSecretToken;
-    private String cozeEndpoint = "https://open.coze.cn/openapi/v3/chat/completions";
+    private String apiBotId;
+    private String apiKey;
+    private String apiEndpoint = "https://aiproxy.bja.sealos.run/v1/chat/completions";
+    private String model = "moonshot-v1-8k-vision-preview";
     private int timeoutMillis = 15000;
     private String defaultStyle = "OT";
     private String defaultRegion = "OT";
     private String defaultPeriod = "OT";
+    private int batchConcurrency = 4;
+    private int batchQueueCapacity = 100;
 
     public boolean isEnabled() {
         return enabled;
@@ -23,28 +26,36 @@ public class AiProperties {
         this.enabled = enabled;
     }
 
-    public String getCozeBotId() {
-        return cozeBotId;
+    public String getApiBotId() {
+        return apiBotId;
     }
 
-    public void setCozeBotId(String cozeBotId) {
-        this.cozeBotId = cozeBotId;
+    public void setApiBotId(String apiBotId) {
+        this.apiBotId = apiBotId;
     }
 
-    public String getCozeSecretToken() {
-        return cozeSecretToken;
+    public String getApiKey() {
+        return apiKey;
     }
 
-    public void setCozeSecretToken(String cozeSecretToken) {
-        this.cozeSecretToken = cozeSecretToken;
+    public void setApiKey(String apiKey) {
+        this.apiKey = apiKey;
     }
 
-    public String getCozeEndpoint() {
-        return cozeEndpoint;
+    public String getApiEndpoint() {
+        return apiEndpoint;
     }
 
-    public void setCozeEndpoint(String cozeEndpoint) {
-        this.cozeEndpoint = cozeEndpoint;
+    public void setApiEndpoint(String apiEndpoint) {
+        this.apiEndpoint = apiEndpoint;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
     }
 
     public int getTimeoutMillis() {
@@ -77,5 +88,21 @@ public class AiProperties {
 
     public void setDefaultPeriod(String defaultPeriod) {
         this.defaultPeriod = defaultPeriod;
+    }
+
+    public int getBatchConcurrency() {
+        return batchConcurrency;
+    }
+
+    public void setBatchConcurrency(int batchConcurrency) {
+        this.batchConcurrency = batchConcurrency;
+    }
+
+    public int getBatchQueueCapacity() {
+        return batchQueueCapacity;
+    }
+
+    public void setBatchQueueCapacity(int batchQueueCapacity) {
+        this.batchQueueCapacity = batchQueueCapacity;
     }
 }

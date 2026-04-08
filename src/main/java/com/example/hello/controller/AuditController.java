@@ -21,6 +21,8 @@ import com.example.hello.dto.AiBatchPreviewRequest;
 import com.example.hello.dto.AiBatchPreviewResponse;
 import com.example.hello.dto.AiBatchSubmitRequest;
 import com.example.hello.dto.AiBatchSubmitResponse;
+import com.example.hello.dto.AiBatchTaskProgressResponse;
+import com.example.hello.dto.AiBatchTaskStartResponse;
 import com.example.hello.dto.AuditRequest;
 import com.example.hello.dto.BatchAuditRequest;
 import com.example.hello.dto.PatternRequest;
@@ -85,6 +87,28 @@ public class AuditController {
             @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(aiBatchEntryService.submit(request, userId));
+    }
+
+    /**
+     * AI 批量提交异步任务启动（用于前端进度展示）
+     */
+    @PostMapping("/ai-batch-submit/start")
+    public ResponseEntity<AiBatchTaskStartResponse> aiBatchSubmitStart(
+            @Valid @RequestBody AiBatchSubmitRequest request,
+            @RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        return ResponseEntity.ok(aiBatchEntryService.startSubmitTask(request, userId));
+    }
+
+    /**
+     * AI 批量提交异步任务进度查询
+     */
+    @GetMapping("/ai-batch-submit/progress/{taskId}")
+    public ResponseEntity<AiBatchTaskProgressResponse> aiBatchSubmitProgress(
+            @PathVariable String taskId,
+            @RequestHeader("Authorization") String token) {
+        getUserIdFromToken(token);
+        return ResponseEntity.ok(aiBatchEntryService.getSubmitTaskProgress(taskId));
     }
 
     /**

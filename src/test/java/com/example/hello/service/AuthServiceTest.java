@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -41,11 +40,15 @@ class AuthServiceTest {
     @Mock
     private InvitationCodeService invitationCodeService;
 
+    @Mock
+    private AppRegistrationCallbackService appRegistrationCallbackService;
+
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, passwordEncoder, jwtUtil, invitationCodeService);
+        authService = new AuthService(userRepository, passwordEncoder, jwtUtil, invitationCodeService,
+                appRegistrationCallbackService);
     }
 
     @Test
@@ -53,6 +56,7 @@ class AuthServiceTest {
         RegisterRequest request = buildRegisterRequest();
         when(userRepository.existsByUsername("alice")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(invitationCodeService.consumeCode("123456")).thenReturn(InvitationCodeService.CodeConsumeResult.local());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         AuthResponse response = authService.register(request);
@@ -67,13 +71,33 @@ class AuthServiceTest {
         assertEquals("alice", savedUser.getUsername());
         assertEquals("encoded-password", savedUser.getPassword());
         assertEquals(UserRole.USER, savedUser.getRole());
+        verifyNoInteractions(appRegistrationCallbackService);
+    }
+
+    @Test
+    void register_shouldNotifyAppWhenCodeComesFromApp() {
+        RegisterRequest request = buildRegisterRequest();
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(invitationCodeService.consumeCode("123456")).thenReturn(InvitationCodeService.CodeConsumeResult.app());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User saved = invocation.getArgument(0);
+            saved.setId(10L);
+            return saved;
+        });
+
+        AuthResponse response = authService.register(request);
+
+        assertNull(response.getToken());
+        assertEquals("注册成功", response.getMessage());
+        verify(appRegistrationCallbackService).notifyRegisterSuccess("123456", "10", "alice", null);
     }
 
     @Test
     void register_shouldPropagateRegistrationCodeFailureWithoutSavingUser() {
         RegisterRequest request = buildRegisterRequest();
         when(userRepository.existsByUsername("alice")).thenReturn(false);
-        doThrow(new RuntimeException("邀请码或剪艺码无效")).when(invitationCodeService).consumeCode("123456");
+        when(invitationCodeService.consumeCode("123456")).thenThrow(new RuntimeException("邀请码或剪艺码无效"));
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(request));
 
@@ -89,7 +113,7 @@ class AuthServiceTest {
         RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(request));
 
         assertEquals("用户名已存在", ex.getMessage());
-        verifyNoInteractions(invitationCodeService);
+        verifyNoInteractions(invitationCodeService, appRegistrationCallbackService);
     }
 
     @Test
@@ -106,7 +130,7 @@ class AuthServiceTest {
         assertEquals("密码重置成功", response.getMessage());
         assertEquals("encoded-new-password", user.getPassword());
         verify(userRepository).save(user);
-        verifyNoInteractions(invitationCodeService);
+        verifyNoInteractions(invitationCodeService, appRegistrationCallbackService);
     }
 
     @Test
@@ -117,7 +141,7 @@ class AuthServiceTest {
         RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.forgotPassword(request));
 
         assertEquals("用户不存在", ex.getMessage());
-        verifyNoInteractions(invitationCodeService, passwordEncoder);
+        verifyNoInteractions(invitationCodeService, passwordEncoder, appRegistrationCallbackService);
         verify(userRepository, never()).save(any(User.class));
     }
 
@@ -129,7 +153,7 @@ class AuthServiceTest {
         RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.forgotPassword(request));
 
         assertEquals("两次密码不一致", ex.getMessage());
-        verifyNoInteractions(userRepository, invitationCodeService, passwordEncoder);
+        verifyNoInteractions(userRepository, invitationCodeService, passwordEncoder, appRegistrationCallbackService);
     }
 
     private RegisterRequest buildRegisterRequest() {

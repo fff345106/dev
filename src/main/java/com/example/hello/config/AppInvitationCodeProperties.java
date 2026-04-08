@@ -14,6 +14,9 @@ public class AppInvitationCodeProperties {
     private String authToken;
     private String requestCodeField = "code";
     private int timeoutMillis = 5000;
+    private String registerCallbackEndpoint;
+    private String callbackApiKeyHeader = "X-API-Key";
+    private String callbackApiKey;
 
     public boolean isEnabled() {
         return enabled;
@@ -69,5 +72,29 @@ public class AppInvitationCodeProperties {
 
     public void setTimeoutMillis(int timeoutMillis) {
         this.timeoutMillis = timeoutMillis;
+    }
+
+    public String getRegisterCallbackEndpoint() {
+        return registerCallbackEndpoint;
+    }
+
+    public void setRegisterCallbackEndpoint(String registerCallbackEndpoint) {
+        this.registerCallbackEndpoint = registerCallbackEndpoint;
+    }
+
+    public String getCallbackApiKeyHeader() {
+        return callbackApiKeyHeader;
+    }
+
+    public void setCallbackApiKeyHeader(String callbackApiKeyHeader) {
+        this.callbackApiKeyHeader = callbackApiKeyHeader;
+    }
+
+    public String getCallbackApiKey() {
+        return callbackApiKey;
+    }
+
+    public void setCallbackApiKey(String callbackApiKey) {
+        this.callbackApiKey = callbackApiKey;
     }
 }

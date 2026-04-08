@@ -2,6 +2,8 @@ package com.example.hello.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -10,7 +12,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +30,8 @@ import com.example.hello.dto.AiBatchPreviewRequest;
 import com.example.hello.dto.AiBatchPreviewResponse;
 import com.example.hello.dto.AiBatchSubmitRequest;
 import com.example.hello.dto.AiBatchSubmitResponse;
+import com.example.hello.dto.AiBatchTaskProgressResponse;
+import com.example.hello.dto.AiBatchTaskStartResponse;
 import com.example.hello.dto.PatternRequest;
 import com.example.hello.entity.PatternPending;
 import com.example.hello.repository.PatternPendingRepository;
@@ -49,15 +56,23 @@ class AiBatchEntryServiceTest {
     private PatternRepository patternRepository;
 
     private AiBatchEntryService aiBatchEntryService;
+    private ExecutorService batchExecutor;
 
     @BeforeEach
     void setUp() {
         PatternCodeService patternCodeService = new PatternCodeService(patternPendingRepository, patternRepository);
+        batchExecutor = Executors.newFixedThreadPool(4);
         aiBatchEntryService = new AiBatchEntryService(
                 aiPatternRecognitionService,
                 auditService,
                 aiProperties,
-                patternCodeService);
+                patternCodeService,
+                batchExecutor);
+    }
+
+    @AfterEach
+    void tearDown() {
+        batchExecutor.shutdownNow();
     }
 
     @Test
@@ -94,7 +109,7 @@ class AiBatchEntryServiceTest {
     }
 
     @Test
-    void preview_shouldCacheRecognitionResultForSameUrl() {
+    void preview_shouldRecognizeEachItemIndependentlyEvenForSameUrl() {
         AiBatchPreviewRequest request = new AiBatchPreviewRequest();
         request.setImageUrls(List.of("https://img/u1.png", "https://img/u1.png"));
 
@@ -113,7 +128,7 @@ class AiBatchEntryServiceTest {
 
         assertEquals(2, response.getTotal());
         assertEquals(2, response.getValidCount());
-        verify(aiPatternRecognitionService, times(1)).recognizeByImageUrl("https://img/u1.png");
+        verify(aiPatternRecognitionService, times(2)).recognizeByImageUrl("https://img/u1.png");
     }
 
     @Test
@@ -250,5 +265,196 @@ class AiBatchEntryServiceTest {
         assertEquals("GD", submitted.getRegion());
         assertEquals("MG", submitted.getPeriod());
         assertEquals("鸟纹", submitted.getDescription());
+    }
+
+    @Test
+    void startSubmitTask_shouldExposeProgressUntilCompleted() throws Exception {
+        when(aiProperties.getDefaultStyle()).thenReturn("OT");
+        when(aiProperties.getDefaultRegion()).thenReturn("OT");
+        when(aiProperties.getDefaultPeriod()).thenReturn("OT");
+
+        AiBatchSubmitRequest request = new AiBatchSubmitRequest();
+        request.setImageUrls(List.of("https://img/u1.png", "https://img/u2.png"));
+
+        when(aiPatternRecognitionService.recognizeByImageUrl("https://img/u1.png"))
+                .thenReturn(new AiPatternRecognitionService.RecognitionResult(
+                        "鸟纹",
+                        "AN",
+                        "BD",
+                        "TR",
+                        "CN",
+                        "QG",
+                        List.of("bird"),
+                        List.of()));
+        when(aiPatternRecognitionService.recognizeByImageUrl("https://img/u2.png"))
+                .thenThrow(new RuntimeException("AI识别失败"));
+
+        PatternPending pending = new PatternPending();
+        pending.setId(201L);
+        pending.setPatternCode("AN-BD-TR-CN-QG-260319-001");
+        pending.setMainCategory("AN");
+        pending.setSubCategory("BD");
+        pending.setStyle("TR");
+        pending.setRegion("CN");
+        pending.setPeriod("QG");
+        when(auditService.submit(any(PatternRequest.class), eq(100L))).thenReturn(pending);
+
+        AiBatchTaskStartResponse startResponse = aiBatchEntryService.startSubmitTask(request, 100L);
+        assertNotNull(startResponse.getTaskId());
+        assertEquals(2, startResponse.getTotal());
+
+        AiBatchTaskProgressResponse progress = null;
+        for (int i = 0; i < 80; i++) {
+            progress = aiBatchEntryService.getSubmitTaskProgress(startResponse.getTaskId());
+            if (progress.isCompleted()) {
+                break;
+            }
+            Thread.sleep(50L);
+        }
+
+        assertNotNull(progress);
+        assertTrue(progress.isCompleted());
+        assertEquals("COMPLETED", progress.getStatus());
+        assertEquals(2, progress.getTotal());
+        assertEquals(2, progress.getProcessed());
+        assertEquals(1, progress.getSuccessCount());
+        assertEquals(1, progress.getFailCount());
+        assertEquals(100, progress.getProgressPercent());
+        assertEquals(2, progress.getItems().size());
+    }
+
+    @Test
+    void startSubmitTask_shouldKeepInputOrderWhenCompletedOutOfOrder() throws Exception {
+        when(aiProperties.getDefaultStyle()).thenReturn("OT");
+        when(aiProperties.getDefaultRegion()).thenReturn("OT");
+        when(aiProperties.getDefaultPeriod()).thenReturn("OT");
+
+        AiBatchSubmitRequest request = new AiBatchSubmitRequest();
+        request.setImageUrls(List.of("https://img/slow.png", "https://img/fast.png"));
+
+        when(aiPatternRecognitionService.recognizeByImageUrl("https://img/slow.png"))
+                .thenAnswer(invocation -> {
+                    Thread.sleep(250L);
+                    return new AiPatternRecognitionService.RecognitionResult(
+                            "慢图纹",
+                            "AN",
+                            "BD",
+                            "TR",
+                            "CN",
+                            "QG",
+                            List.of("slow"),
+                            List.of());
+                });
+        when(aiPatternRecognitionService.recognizeByImageUrl("https://img/fast.png"))
+                .thenAnswer(invocation -> {
+                    Thread.sleep(20L);
+                    return new AiPatternRecognitionService.RecognitionResult(
+                            "快图纹",
+                            "PL",
+                            "FL",
+                            "TR",
+                            "CN",
+                            "QG",
+                            List.of("fast"),
+                            List.of());
+                });
+
+        when(auditService.submit(any(PatternRequest.class), eq(101L))).thenAnswer(invocation -> {
+            PatternRequest req = invocation.getArgument(0);
+            PatternPending pending = new PatternPending();
+            pending.setId("慢图纹".equals(req.getDescription()) ? 301L : 302L);
+            pending.setPatternCode("AN-BD-TR-CN-QG-260319-001");
+            pending.setMainCategory(req.getMainCategory());
+            pending.setSubCategory(req.getSubCategory());
+            pending.setStyle(req.getStyle());
+            pending.setRegion(req.getRegion());
+            pending.setPeriod(req.getPeriod());
+            return pending;
+        });
+
+        AiBatchTaskStartResponse startResponse = aiBatchEntryService.startSubmitTask(request, 101L);
+
+        AiBatchTaskProgressResponse progress = null;
+        for (int i = 0; i < 80; i++) {
+            progress = aiBatchEntryService.getSubmitTaskProgress(startResponse.getTaskId());
+            if (progress.isCompleted()) {
+                break;
+            }
+            Thread.sleep(50L);
+        }
+
+        assertNotNull(progress);
+        assertTrue(progress.isCompleted());
+        assertEquals(2, progress.getItems().size());
+        assertEquals("慢图纹", progress.getItems().get(0).getPatternName());
+        assertEquals("快图纹", progress.getItems().get(1).getPatternName());
+    }
+
+    @Test
+    void startSubmitTask_shouldExposePartialProgressBeforeCompletion() throws Exception {
+        when(aiProperties.getDefaultStyle()).thenReturn("OT");
+        when(aiProperties.getDefaultRegion()).thenReturn("OT");
+        when(aiProperties.getDefaultPeriod()).thenReturn("OT");
+
+        AiBatchSubmitRequest request = new AiBatchSubmitRequest();
+        request.setImageUrls(List.of("https://img/slow2.png", "https://img/fast2.png"));
+
+        when(aiPatternRecognitionService.recognizeByImageUrl("https://img/slow2.png"))
+                .thenAnswer(invocation -> {
+                    Thread.sleep(300L);
+                    return new AiPatternRecognitionService.RecognitionResult(
+                            "慢图二",
+                            "AN",
+                            "BD",
+                            "TR",
+                            "CN",
+                            "QG",
+                            List.of("slow2"),
+                            List.of());
+                });
+        when(aiPatternRecognitionService.recognizeByImageUrl("https://img/fast2.png"))
+                .thenReturn(new AiPatternRecognitionService.RecognitionResult(
+                        "快图二",
+                        "PL",
+                        "FL",
+                        "TR",
+                        "CN",
+                        "QG",
+                        List.of("fast2"),
+                        List.of()));
+
+        when(auditService.submit(any(PatternRequest.class), eq(102L))).thenAnswer(invocation -> {
+            PatternRequest req = invocation.getArgument(0);
+            PatternPending pending = new PatternPending();
+            pending.setId("慢图二".equals(req.getDescription()) ? 401L : 402L);
+            pending.setPatternCode("AN-BD-TR-CN-QG-260319-001");
+            pending.setMainCategory(req.getMainCategory());
+            pending.setSubCategory(req.getSubCategory());
+            pending.setStyle(req.getStyle());
+            pending.setRegion(req.getRegion());
+            pending.setPeriod(req.getPeriod());
+            return pending;
+        });
+
+        AiBatchTaskStartResponse startResponse = aiBatchEntryService.startSubmitTask(request, 102L);
+
+        boolean sawPartial = false;
+        for (int i = 0; i < 20; i++) {
+            AiBatchTaskProgressResponse progress = aiBatchEntryService.getSubmitTaskProgress(startResponse.getTaskId());
+            if (!progress.isCompleted() && progress.getProcessed() > 0 && progress.getProcessed() < progress.getTotal()) {
+                sawPartial = true;
+                break;
+            }
+            Thread.sleep(30L);
+        }
+
+        assertTrue(sawPartial);
+    }
+
+    @Test
+    void getSubmitTaskProgress_shouldThrowWhenTaskNotFound() {
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> aiBatchEntryService.getSubmitTaskProgress("not-exists"));
+        assertTrue(exception.getMessage().contains("任务不存在"));
     }
 }

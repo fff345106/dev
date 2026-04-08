@@ -20,13 +20,16 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final InvitationCodeService invitationCodeService;
+    private final AppRegistrationCallbackService appRegistrationCallbackService;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil,
-            InvitationCodeService invitationCodeService) {
+            InvitationCodeService invitationCodeService,
+            AppRegistrationCallbackService appRegistrationCallbackService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.invitationCodeService = invitationCodeService;
+        this.appRegistrationCallbackService = appRegistrationCallbackService;
     }
 
     @Transactional
@@ -38,12 +41,19 @@ public class AuthService {
             throw new RuntimeException("用户名已存在");
         }
 
-        invitationCodeService.consumeCode(request.getInvitationCode());
+        InvitationCodeService.CodeConsumeResult consumeResult = invitationCodeService.consumeCode(request.getInvitationCode());
 
         User user = new User(request.getUsername(), passwordEncoder.encode(request.getPassword()));
         // 默认为录入员，除非第一个注册的可能是管理员（根据业务需求调整）
         user.setRole(UserRole.USER);
         userRepository.save(user);
+        if (consumeResult != null && consumeResult.source() == InvitationCodeService.CodeSource.APP) {
+            appRegistrationCallbackService.notifyRegisterSuccess(
+                    request.getInvitationCode(),
+                    String.valueOf(user.getId()),
+                    user.getUsername(),
+                    null);
+        }
         return new AuthResponse(null, "注册成功");
     }
 

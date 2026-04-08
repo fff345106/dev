@@ -6,13 +6,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,6 +22,8 @@ import com.example.hello.config.AiProperties;
 import com.example.hello.enums.PatternCodeEnum;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Service
 public class AiPatternRecognitionService {
@@ -49,7 +51,7 @@ public class AiPatternRecognitionService {
         ensureConfig();
 
         try {
-            String botReply = callCozeBot(imageUrl);
+            String botReply = callAiApi(imageUrl);
             RecognitionResult result = parseRecognitionResult(botReply);
             return attachValidation(result);
         } catch (RuntimeException e) {
@@ -60,20 +62,23 @@ public class AiPatternRecognitionService {
     }
 
     private void ensureConfig() {
-        if (isBlank(aiProperties.getCozeBotId())) {
-            throw new RuntimeException("AI识别配置缺失: ai.coze-bot-id");
+        if (isBlank(aiProperties.getApiKey())) {
+            throw new RuntimeException("AI识别配置缺失: ai.api-key");
         }
-        if (isBlank(aiProperties.getCozeSecretToken())) {
-            throw new RuntimeException("AI识别配置缺失: ai.coze-secret-token");
+        if (isBlank(aiProperties.getApiEndpoint())) {
+            throw new RuntimeException("AI识别配置缺失: ai.api-endpoint");
         }
-        if (isBlank(aiProperties.getCozeEndpoint())) {
-            throw new RuntimeException("AI识别配置缺失: ai.coze-endpoint");
+        if (useConversationChatApi() && isBlank(aiProperties.getApiBotId())) {
+            throw new RuntimeException("AI识别配置缺失: ai.api-bot-id");
+        }
+        if (useChatCompletionsApi() && isBlank(aiProperties.getModel())) {
+            throw new RuntimeException("AI识别配置缺失: ai.model");
         }
     }
 
-    private String callCozeBot(String imageUrl) throws Exception {
+    private String callAiApi(String imageUrl) throws Exception {
         String requestBody = buildRequestBody(imageUrl);
-        JsonNode root = sendJsonPost(aiProperties.getCozeEndpoint(), requestBody);
+        JsonNode root = sendJsonPost(aiProperties.getApiEndpoint(), requestBody);
         root = awaitConversationResult(root);
 
         String content = extractAssistantContent(root);
@@ -87,40 +92,60 @@ public class AiPatternRecognitionService {
             }
         }
         if (isBlank(content)) {
-            throw new RuntimeException("扣子Bot未返回有效回答: " + abbreviate(root.toString(), 300));
+            throw new RuntimeException("AI接口未返回有效回答: " + abbreviate(root.toString(), 300));
         }
         return content.trim();
     }
 
     private String buildRequestBody(String imageUrl) throws Exception {
-        String prompt = buildRecognitionPrompt(imageUrl);
-        String userId = buildUserId(imageUrl);
+        String prompt = buildRecognitionPrompt();
         if (useConversationChatApi()) {
+            String userId = buildUserId();
             return objectMapper.createObjectNode()
-                    .put("bot_id", aiProperties.getCozeBotId())
+                    .put("bot_id", aiProperties.getApiBotId())
                     .put("user_id", userId)
                     .put("stream", false)
-                    .put("auto_save_history", true)
+                    .put("auto_save_history", false)
                     .set("additional_messages", objectMapper.createArrayNode()
-                            .add(objectMapper.createObjectNode()
-                                    .put("role", "user")
-                                    .put("content", prompt)
-                                    .put("content_type", "text")))
+                            .add(createMultimodalMessage(prompt, imageUrl)))
                     .toString();
         }
         return objectMapper.createObjectNode()
-                .put("bot_id", aiProperties.getCozeBotId())
-                .put("user_id", userId)
+                .put("model", aiProperties.getModel())
                 .put("stream", false)
+                .put("max_tokens", 512)
+                .put("temperature", 0.7)
                 .set("messages", objectMapper.createArrayNode()
-                        .add(objectMapper.createObjectNode()
-                                .put("role", "user")
-                                .put("content", prompt)))
+                        .add(createMultimodalMessage(prompt, imageUrl)))
                 .toString();
     }
 
+    private ObjectNode createMultimodalMessage(String prompt, String imageUrl) {
+        ObjectNode message = objectMapper.createObjectNode();
+        message.put("role", "user");
+
+        ArrayNode contentArray = objectMapper.createArrayNode();
+
+        // 文本部分
+        ObjectNode textPart = objectMapper.createObjectNode();
+        textPart.put("type", "text");
+        textPart.put("text", prompt);
+        contentArray.add(textPart);
+
+        // 图片部分
+        ObjectNode imagePart = objectMapper.createObjectNode();
+        imagePart.put("type", "image_url");
+        ObjectNode imageUrlNode = objectMapper.createObjectNode();
+        imageUrlNode.put("url", imageUrl);
+        imagePart.set("image_url", imageUrlNode);
+        contentArray.add(imagePart);
+
+        message.set("content", contentArray);
+        return message;
+    }
+
     private boolean useConversationChatApi() {
-        String endpoint = aiProperties.getCozeEndpoint();
+        String endpoint = aiProperties.getApiEndpoint();
         if (isBlank(endpoint)) {
             return false;
         }
@@ -128,11 +153,19 @@ public class AiPatternRecognitionService {
         return normalized.contains("/v3/chat") && !normalized.contains("chat/completions");
     }
 
+    private boolean useChatCompletionsApi() {
+        String endpoint = aiProperties.getApiEndpoint();
+        if (isBlank(endpoint)) {
+            return false;
+        }
+        return endpoint.toLowerCase(Locale.ROOT).contains("chat/completions");
+    }
+
     private JsonNode sendJsonPost(String endpoint, String requestBody) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .timeout(Duration.ofMillis(aiProperties.getTimeoutMillis()))
-                .header("Authorization", "Bearer " + aiProperties.getCozeSecretToken())
+                .header("Authorization", "Bearer " + aiProperties.getApiKey())
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
@@ -144,7 +177,7 @@ public class AiPatternRecognitionService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .timeout(Duration.ofMillis(aiProperties.getTimeoutMillis()))
-                .header("Authorization", "Bearer " + aiProperties.getCozeSecretToken())
+                .header("Authorization", "Bearer " + aiProperties.getApiKey())
                 .header("Accept", "application/json")
                 .GET()
                 .build();
@@ -158,7 +191,7 @@ public class AiPatternRecognitionService {
         }
 
         JsonNode root = objectMapper.readTree(response.body());
-        throwIfCozeError(root);
+        throwIfApiError(root);
         return root;
     }
 
@@ -190,10 +223,10 @@ public class AiPatternRecognitionService {
 
         String finalStatus = extractConversationStatus(current);
         if (isConversationPending(finalStatus)) {
-            throw new RuntimeException("扣子Bot响应超时: " + abbreviate(current.toString(), 300));
+            throw new RuntimeException("AI接口响应超时: " + abbreviate(current.toString(), 300));
         }
         if (isConversationFailure(finalStatus)) {
-            throw new RuntimeException("扣子Bot调用失败: " + firstNonBlank(
+            throw new RuntimeException("AI接口调用失败: " + firstNonBlank(
                     extractErrorMessage(current.toString()),
                     abbreviate(current.toString(), 300)));
         }
@@ -233,7 +266,7 @@ public class AiPatternRecognitionService {
     }
 
     private String deriveConversationEndpoint(String suffix) {
-        String endpoint = aiProperties.getCozeEndpoint();
+        String endpoint = aiProperties.getApiEndpoint();
         if (endpoint.endsWith(suffix)) {
             return endpoint;
         }
@@ -290,9 +323,9 @@ public class AiPatternRecognitionService {
     private String buildHttpErrorMessage(int statusCode, String responseBody) {
         String message = extractErrorMessage(responseBody);
         if (!isBlank(message)) {
-            return "扣子Bot调用失败，HTTP状态: " + statusCode + "，错误: " + message;
+            return "AI接口调用失败，HTTP状态: " + statusCode + "，错误: " + message;
         }
-        return "扣子Bot调用失败，HTTP状态: " + statusCode + "，响应: " + abbreviate(responseBody, 300);
+        return "AI接口调用失败，HTTP状态: " + statusCode + "，响应: " + abbreviate(responseBody, 300);
     }
 
     private String extractErrorMessage(String responseBody) {
@@ -324,12 +357,12 @@ public class AiPatternRecognitionService {
         return normalized.substring(0, maxLength) + "...";
     }
 
-    private void throwIfCozeError(JsonNode root) {
+    private void throwIfApiError(JsonNode root) {
         JsonNode codeNode = root.path("code");
         if (!codeNode.isMissingNode() && !codeNode.isNull()) {
             String codeText = asText(codeNode);
             if (!isBlank(codeText) && !"0".equals(codeText.trim()) && !"success".equalsIgnoreCase(codeText.trim())) {
-                throw new RuntimeException("扣子Bot调用失败: " + firstNonBlank(
+                throw new RuntimeException("AI接口调用失败: " + firstNonBlank(
                         asText(root.path("msg")),
                         asText(root.path("message")),
                         "未知错误"));
@@ -344,7 +377,7 @@ public class AiPatternRecognitionService {
                     root.path("msg").asText(null),
                     root.path("message").asText(null),
                     "未知错误");
-            throw new RuntimeException("扣子Bot调用失败: " + message);
+            throw new RuntimeException("AI接口调用失败: " + message);
         }
 
         JsonNode lastErrorNode = root.path("data").path("last_error");
@@ -353,7 +386,7 @@ public class AiPatternRecognitionService {
                     asText(lastErrorNode.path("msg")),
                     asText(lastErrorNode.path("message")));
             if (!isBlank(message)) {
-                throw new RuntimeException("扣子Bot调用失败: " + message);
+                throw new RuntimeException("AI接口调用失败: " + message);
             }
         }
     }
@@ -445,7 +478,7 @@ public class AiPatternRecognitionService {
 
         List<KeywordHit> keywordHits = buildKeywordHitsFromDescription(botReply);
         if (keywordHits.isEmpty()) {
-            throw new RuntimeException("扣子Bot未返回可用结果");
+            throw new RuntimeException("AI接口未返回可用结果");
         }
         return mapFromKeywords(keywordHits);
     }
@@ -641,18 +674,107 @@ public class AiPatternRecognitionService {
         return keywords;
     }
 
-    private String buildUserId(String imageUrl) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(imageUrl.getBytes(StandardCharsets.UTF_8));
-        StringBuilder builder = new StringBuilder("ai-batch-");
-        for (int i = 0; i < 8 && i < hash.length; i++) {
-            builder.append(String.format(Locale.ROOT, "%02x", hash[i]));
-        }
-        return builder.toString();
+    private String buildUserId() {
+        return "ai-batch-" + UUID.randomUUID().toString().replace("-", "");
     }
 
-    private String buildRecognitionPrompt(String imageUrl) {
-        return "识别出纹样的名称(纹样名称请根据图片内容自由命名，纹样名称必须具体，不能只输出花鸟、人物等大类，必须识别出具体名称，正确示例：喜鹊登梅、童子抱鱼等，错误示例：动物纹样、植物纹样、人物剪纸等)\n" + imageUrl;
+    private String buildRecognitionPrompt() {
+        return """
+                你是一个剪纸纹样识别专家。请基于上传的图片识别纹样，并严格按代码表输出结构化结果。
+
+                约束要求：
+                1) 纹样名称需具体，不可仅输出“动物/植物/人物”等大类。
+                2) 代码必须从下方代码表中选择。
+                3) 时期不能是 OT，若无法判断请根据图像风格做最接近推断。
+                4) 最终仅输出 JSON，不要输出 Markdown、解释文字或额外字段。
+
+                主类别代码|类别名称|分类指引
+                AN 动物: 包含禽鸟、鱼虫、走兽等现实或想象中的动物形象。
+                PL 植物: 包含花卉、草木、果实、叶子等各种植物形态。
+                PE 人物: 包含各年龄段、各社会角色的人像或人物活动。
+                LA 风景: 包含山水、园林、建筑等自然或人工景观。
+                AB 抽象: 包含几何纹、装饰性线条等无具体实物对应的图案。
+                OR 器物: 包含家具、兵器、乐器、日常用品等人工制造的物体。
+                SY 符号: 包含文字、吉祥图符、八卦、万字纹等抽象语义符号。
+                CE 庆典: 包含岁时节令、民俗舞蹈、戏剧场景、婚嫁等仪式。
+                MY 神话: 包含神仙佛道、民间传说、仙境等超自然题材。
+                OT 其他: 无法归入上述明确类别的题材。
+
+                动物子类别（AN）指引
+                BD 鸟类: 飞禽类，如凤凰、喜鹊、仙鹤、鸳鸯等。
+                FS 鱼类: 各种鱼类形象，常代表年年有余。
+                IN 昆虫: 蝴蝶、蝉、螳螂、蚂蚱等。
+                MA 哺乳动物: 走兽类，如虎、狮、马、鹿、兔、猫等。
+                MY 神话动物: 龙、麒麟、貔貅、饕餮等非现实动物。
+                RP 爬行动物: 蛇、龟、蜥蜴、蟾蜍等。
+                OT 其他动物: 其他无法分类的动物。
+
+                植物子类别（PL）指引
+                FL 花卉: 以花朵为核心，如牡丹、莲花、菊花、梅花等。
+                TR 树木: 以树干、树枝或整体树形为主，如松、柏、柳、竹。
+                FR 果实: 植物的果实或种子，如石榴（多子）、桃（长寿）、葫芦。
+                GR 谷物: 农作物，如麦穗、稻谷，代表丰收。
+                LV 叶子: 仅以叶片作为主要表现对象。
+                OT 其他植物: 其他无法分类的植物。
+
+                人物类子类别（PE）指引
+                MU 男性: 表现成年男性形象。
+                FE 女性: 表现成年女性形象。
+                CH 儿童: 表现婴幼儿或少年形象，如“童子戏莲”。
+                EL 老人: 表现长者、老寿星等形象。
+                CE 名人: 表现历史人物、神话英雄或知名文人。
+                OT 其他人物: 群像或难以区分角色的人物。
+
+                风格代码表
+                TR 传统
+                MO 现代
+                FO 民间
+                ET 民族
+                GE 几何
+                RE 写实
+                DE 装饰
+                MI 混合
+                OT 其他风格
+
+                时期代码表
+                XS 先秦
+                QG 秦汉
+                WS 魏晋
+                TG 隋唐
+                SG 宋元
+                MG 明清
+                MJ 民国
+                XD 现代
+                OT 其他时期
+
+                地区代码表
+                CN 中国
+                BJ 北京
+                TJ 天津
+                HB 河北
+                SX 山西
+                SD 山东
+                JS 江苏
+                ZJ 浙江
+                AH 安徽
+                FJ 福建
+                GD 广东
+                SC 四川
+                YN 云南
+                OT 其他省份
+
+                输出 JSON 模板（键名必须一致）：
+                {
+                  "patternName": "",
+                  "mainCategory": "",
+                  "subCategory": "",
+                  "style": "",
+                  "region": "",
+                  "period": "",
+                  "keywords": ["", "", ""]
+                }
+
+                请根据上传的图片进行纹样识别，并严格按照上述JSON格式输出。""";
     }
 
     private String stripMarkdownCodeFence(String text) {

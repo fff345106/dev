@@ -74,6 +74,18 @@ class HttpAppInvitationCodeVerifierTest {
     }
 
     @Test
+    void verifyAndConsume_shouldMapCanRegisterFalseToUsed() throws Exception {
+        String baseUrl = startServer(200, "{\"valid\":true,\"can_register\":false,\"message\":\"剪艺码已使用\"}", null, null);
+
+        HttpAppInvitationCodeVerifier verifier = new HttpAppInvitationCodeVerifier(
+                buildProperties(baseUrl + "/codes/consume"), new ObjectMapper());
+        VerificationResult result = verifier.verifyAndConsume("123456");
+
+        assertEquals(VerificationStatus.USED, result.status());
+        assertEquals("剪艺码已使用", result.message());
+    }
+
+    @Test
     void verifyAndConsume_shouldReturnUnavailableWhenServiceReturnsServerError() throws Exception {
         String baseUrl = startServer(500, "{\"message\":\"系统繁忙\"}", null, null);
 

@@ -17,6 +17,21 @@ import com.example.hello.service.AppInvitationCodeVerifier.VerificationStatus;
 @Service
 public class InvitationCodeService {
 
+    public enum CodeSource {
+        LOCAL,
+        APP
+    }
+
+    public record CodeConsumeResult(CodeSource source) {
+        public static CodeConsumeResult local() {
+            return new CodeConsumeResult(CodeSource.LOCAL);
+        }
+
+        public static CodeConsumeResult app() {
+            return new CodeConsumeResult(CodeSource.APP);
+        }
+    }
+
     private static final int CODE_LENGTH = 6;
     private static final String INVALID_CODE_MESSAGE = "邀请码或剪艺码无效";
     private static final String APP_CODE_USED_MESSAGE = "剪艺码已使用";
@@ -49,16 +64,17 @@ public class InvitationCodeService {
     }
 
     @Transactional
-    public void consumeCode(String code) {
+    public CodeConsumeResult consumeCode(String code) {
         InvitationCode invitationCode = invitationCodeRepository.findByCodeForUpdate(code)
                 .orElse(null);
         if (invitationCode != null) {
             consumeLocalCode(invitationCode);
-            return;
+            return CodeConsumeResult.local();
         }
 
         VerificationResult verificationResult = appInvitationCodeVerifier.verifyAndConsume(code);
         handleAppVerificationResult(verificationResult);
+        return CodeConsumeResult.app();
     }
 
     private void consumeLocalCode(InvitationCode invitationCode) {
