@@ -8,6 +8,9 @@ public class DraftRequest {
     private String region;
     private String period;
     private String imageUrl;
+    private String imageSourceType; // 图片来源: TEMP_UPLOAD/EXTERNAL/LIBRARY
+    private String storyText; // 藏品故事-文字描述
+    private String storyImageUrl; // 藏品故事-图片 (支持PDF)
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
@@ -23,4 +26,10 @@ public class DraftRequest {
     public void setPeriod(String period) { this.period = period; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getImageSourceType() { return imageSourceType; }
+    public void setImageSourceType(String imageSourceType) { this.imageSourceType = imageSourceType; }
+    public String getStoryText() { return storyText; }
+    public void setStoryText(String storyText) { this.storyText = storyText; }
+    public String getStoryImageUrl() { return storyImageUrl; }
+    public void setStoryImageUrl(String storyImageUrl) { this.storyImageUrl = storyImageUrl; }
 }

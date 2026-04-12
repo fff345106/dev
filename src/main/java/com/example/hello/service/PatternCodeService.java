@@ -305,8 +305,8 @@ public class PatternCodeService {
 
     private String requiredCode(String fieldName, String code) {
         String normalized = normalizeCode(code);
-        if (normalized == null) {
-            throw new IllegalArgumentException(fieldName + "不能为空");
+        if (normalized == null || normalized.isEmpty()) {
+            return "OT"; // 默认返回“其他”
         }
         return normalized;
     }

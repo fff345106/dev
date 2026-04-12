@@ -22,6 +22,7 @@ import com.example.hello.entity.Pattern;
 import com.example.hello.entity.PatternPending;
 import com.example.hello.entity.User;
 import com.example.hello.enums.AuditStatus;
+import com.example.hello.enums.ImageSourceType;
 import com.example.hello.enums.UserRole;
 import com.example.hello.repository.PatternPendingRepository;
 import com.example.hello.repository.PatternRepository;
@@ -65,6 +66,21 @@ class AuditServiceReviewFlowTest {
                 patternCodeService);
 
         when(pendingRepository.save(any(PatternPending.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.lenient().when(imageService.resolveImageSourceType(any(), any())).thenAnswer(invocation -> {
+            String sourceType = invocation.getArgument(0);
+            String imageUrl = invocation.getArgument(1);
+            if (sourceType != null && !sourceType.isBlank()) {
+                return ImageSourceType.fromValue(sourceType);
+            }
+            if (imageUrl != null && imageUrl.contains("/temp/")) {
+                return ImageSourceType.TEMP_UPLOAD;
+            }
+            return ImageSourceType.EXTERNAL;
+        });
+        org.mockito.Mockito.lenient().when(imageService.shouldDeleteTempImage(any(), any())).thenAnswer(invocation -> {
+            String sourceType = invocation.getArgument(1);
+            return "TEMP_UPLOAD".equalsIgnoreCase(sourceType);
+        });
     }
 
     @Test
@@ -167,9 +183,93 @@ class AuditServiceReviewFlowTest {
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> auditService.audit(pendingId, request, auditorId));
 
-        assertTrue(ex.getMessage().contains("移动正式图片失败"));
+        assertTrue(ex.getMessage().contains("处理正式图片失败"));
         verify(patternRepository, never()).save(any(Pattern.class));
         verify(blockchainAnchorService, never()).anchor(any(), any(), any());
+    }
+
+    @Test
+    void auditApprove_librarySource_shouldCopyWithoutDeletingSource() throws Exception {
+        Long pendingId = 89L;
+        Long auditorId = 4L;
+        PatternPending pending = buildPending(pendingId);
+        String sourceUrl = "https://objectstorageapi.bja.sealos.run/hpy8jg7h-images/library/a.png";
+        pending.setImageUrl(sourceUrl);
+        pending.setImageSourceType("LIBRARY");
+
+        when(userRepository.findById(auditorId)).thenReturn(Optional.of(buildAdmin(auditorId)));
+        when(pendingRepository.findById(pendingId)).thenReturn(Optional.of(pending));
+        when(patternRepository.save(any(Pattern.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(imageService.copyToFormalWithoutDeletingSource(sourceUrl, pending.getPatternCode()))
+                .thenReturn("https://img/AN-BD-TR-CN-QG-260319-001.png");
+        when(patternHashService.computeSha256ByImageUrl("https://img/AN-BD-TR-CN-QG-260319-001.png"))
+                .thenReturn("abc123hash");
+        when(patternHashService.hashAlgorithm()).thenReturn("SHA-256");
+        when(blockchainAnchorService.isEnabled()).thenReturn(false);
+
+        AuditRequest request = new AuditRequest();
+        request.setApproved(true);
+
+        Object result = auditService.audit(pendingId, request, auditorId);
+
+        Pattern pattern = assertInstanceOf(Pattern.class, result);
+        assertEquals("https://img/AN-BD-TR-CN-QG-260319-001.png", pattern.getImageUrl());
+        verify(imageService).copyToFormalWithoutDeletingSource(sourceUrl, pending.getPatternCode());
+        verify(imageService, never()).moveToFormal(any(), any());
+        verify(imageService, never()).fetchExternalToFormal(any(), any());
+    }
+
+    @Test
+    void auditApprove_externalSource_shouldFetchToFormal() throws Exception {
+        Long pendingId = 90L;
+        Long auditorId = 5L;
+        PatternPending pending = buildPending(pendingId);
+        String sourceUrl = "https://example.com/ext/a.png";
+        pending.setImageUrl(sourceUrl);
+        pending.setImageSourceType("EXTERNAL");
+
+        when(userRepository.findById(auditorId)).thenReturn(Optional.of(buildAdmin(auditorId)));
+        when(pendingRepository.findById(pendingId)).thenReturn(Optional.of(pending));
+        when(patternRepository.save(any(Pattern.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(imageService.fetchExternalToFormal(sourceUrl, pending.getPatternCode()))
+                .thenReturn("https://img/AN-BD-TR-CN-QG-260319-001.png");
+        when(patternHashService.computeSha256ByImageUrl("https://img/AN-BD-TR-CN-QG-260319-001.png"))
+                .thenReturn("abc123hash");
+        when(patternHashService.hashAlgorithm()).thenReturn("SHA-256");
+        when(blockchainAnchorService.isEnabled()).thenReturn(false);
+
+        AuditRequest request = new AuditRequest();
+        request.setApproved(true);
+
+        Object result = auditService.audit(pendingId, request, auditorId);
+
+        Pattern pattern = assertInstanceOf(Pattern.class, result);
+        assertEquals("https://img/AN-BD-TR-CN-QG-260319-001.png", pattern.getImageUrl());
+        verify(imageService).fetchExternalToFormal(sourceUrl, pending.getPatternCode());
+        verify(imageService, never()).moveToFormal(any(), any());
+        verify(imageService, never()).copyToFormalWithoutDeletingSource(any(), any());
+    }
+
+    @Test
+    void auditReject_externalSource_shouldNotDeleteTempImage() throws Exception {
+        Long pendingId = 91L;
+        Long auditorId = 6L;
+        PatternPending pending = buildPending(pendingId);
+        pending.setImageUrl("https://example.com/ext/a.png");
+        pending.setImageSourceType("EXTERNAL");
+
+        when(userRepository.findById(auditorId)).thenReturn(Optional.of(buildAdmin(auditorId)));
+        when(pendingRepository.findById(pendingId)).thenReturn(Optional.of(pending));
+
+        AuditRequest request = new AuditRequest();
+        request.setApproved(false);
+        request.setRejectReason("图片不清晰");
+
+        Object result = auditService.audit(pendingId, request, auditorId);
+        PatternPending saved = assertInstanceOf(PatternPending.class, result);
+
+        assertEquals(AuditStatus.REJECTED, saved.getStatus());
+        verify(imageService, never()).deleteTempImage(any());
     }
 
     private PatternPending buildPending(Long id) {
@@ -186,6 +286,7 @@ class AuditServiceReviewFlowTest {
         pending.setSequenceNumber(1);
         pending.setPatternCode("AN-BD-TR-CN-QG-260319-001");
         pending.setImageUrl("https://img/temp/a.png");
+        pending.setImageSourceType("TEMP_UPLOAD");
         pending.setSubmitter(buildSubmitter(100L));
         return pending;
     }

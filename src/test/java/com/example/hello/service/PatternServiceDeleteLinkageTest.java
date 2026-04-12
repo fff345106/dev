@@ -41,7 +41,7 @@ class PatternServiceDeleteLinkageTest {
 
     @BeforeEach
     void setUp() {
-        patternService = new PatternService(patternRepository, patternPendingRepository, imageService, patternCodeService);
+        patternService = new PatternService(patternRepository, patternPendingRepository, imageService, patternCodeService, "https://example.com");
     }
 
     @Test

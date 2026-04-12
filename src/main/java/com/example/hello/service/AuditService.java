@@ -16,6 +16,7 @@ import com.example.hello.entity.Pattern;
 import com.example.hello.entity.PatternPending;
 import com.example.hello.entity.User;
 import com.example.hello.enums.AuditStatus;
+import com.example.hello.enums.ImageSourceType;
 import com.example.hello.enums.UserRole;
 import com.example.hello.repository.PatternPendingRepository;
 import com.example.hello.repository.PatternRepository;
@@ -66,6 +67,9 @@ public class AuditService {
         pending.setRegion(normalizedCodes.region());
         pending.setPeriod(normalizedCodes.period());
         pending.setImageUrl(request.getImageUrl());
+        pending.setImageSourceType(imageService.normalizeImageSourceTypeValue(request.getImageSourceType(), request.getImageUrl()));
+        pending.setStoryText(request.getStoryText());
+        pending.setStoryImageUrl(request.getStoryImageUrl());
         pending.setSubmitter(submitter);
         pending.setStatus(AuditStatus.PENDING);
 
@@ -109,8 +113,9 @@ public class AuditService {
             pending.setStatus(AuditStatus.REJECTED);
             pending.setRejectReason(request.getRejectReason());
             
-            // 删除临时图片
-            if (pending.getImageUrl() != null && !pending.getImageUrl().isEmpty()) {
+            // 仅删除临时上传来源图片
+            if (pending.getImageUrl() != null && !pending.getImageUrl().isEmpty()
+                    && imageService.shouldDeleteTempImage(pending.getImageUrl(), pending.getImageSourceType())) {
                 try {
                     imageService.deleteTempImage(pending.getImageUrl());
                     pending.setImageUrl(null);
@@ -162,6 +167,9 @@ public class AuditService {
         pending.setRegion(normalizedCodes.region());
         pending.setPeriod(normalizedCodes.period());
         pending.setImageUrl(request.getImageUrl());
+        pending.setImageSourceType(imageService.normalizeImageSourceTypeValue(request.getImageSourceType(), request.getImageUrl()));
+        pending.setStoryText(request.getStoryText());
+        pending.setStoryImageUrl(request.getStoryImageUrl());
         pending.setStatus(AuditStatus.PENDING);
         pending.setAuditor(null);
         pending.setAuditTime(null);
@@ -258,8 +266,9 @@ public class AuditService {
             }
         }
 
-        // 删除关联的临时图片
-        if (pending.getImageUrl() != null && !pending.getImageUrl().isEmpty()) {
+        // 仅删除临时上传来源图片
+        if (pending.getImageUrl() != null && !pending.getImageUrl().isEmpty()
+                && imageService.shouldDeleteTempImage(pending.getImageUrl(), pending.getImageSourceType())) {
             try {
                 imageService.deleteTempImage(pending.getImageUrl());
             } catch (IOException e) {
@@ -316,21 +325,33 @@ public class AuditService {
         pattern.setRegion(pending.getRegion());
         pattern.setPeriod(pending.getPeriod());
         pattern.setImageUrl(pending.getImageUrl());
+        pattern.setImageSourceType(imageService.normalizeImageSourceTypeValue(pending.getImageSourceType(), pending.getImageUrl()));
+        pattern.setStoryText(pending.getStoryText());
+        pattern.setStoryImageUrl(pending.getStoryImageUrl());
 
         // 直接使用待审核记录中已生成的编码
         pattern.setDateCode(pending.getDateCode());
         pattern.setSequenceNumber(pending.getSequenceNumber());
         pattern.setPatternCode(pending.getPatternCode());
 
-        // 将图片从临时目录移动到正式目录
+        // 按来源处理图片
         try {
-            String newUrl = imageService.moveToFormal(pattern.getImageUrl(), pattern.getPatternCode());
+            ImageSourceType sourceType = imageService.resolveImageSourceType(pending.getImageSourceType(), pattern.getImageUrl());
+            String newUrl;
+            switch (sourceType) {
+                case TEMP_UPLOAD -> newUrl = imageService.moveToFormal(pattern.getImageUrl(), pattern.getPatternCode());
+                case LIBRARY -> newUrl = imageService.copyToFormalWithoutDeletingSource(pattern.getImageUrl(), pattern.getPatternCode());
+                case EXTERNAL -> newUrl = imageService.fetchExternalToFormal(pattern.getImageUrl(), pattern.getPatternCode());
+                default -> throw new IllegalStateException("不支持的图片来源类型: " + sourceType);
+            }
             pattern.setImageUrl(newUrl);
-            // 同步更新 pending 记录的图片URL
+            pattern.setImageSourceType(sourceType.name());
+            // 同步更新 pending 记录
             pending.setImageUrl(newUrl);
+            pending.setImageSourceType(sourceType.name());
             pendingRepository.save(pending);
         } catch (IOException e) {
-            throw new RuntimeException("审核通过失败：移动正式图片失败: " + e.getMessage(), e);
+            throw new RuntimeException("审核通过失败：处理正式图片失败: " + e.getMessage(), e);
         }
 
         // 1) 计算哈希并先落库

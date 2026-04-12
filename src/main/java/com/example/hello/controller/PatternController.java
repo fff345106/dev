@@ -3,6 +3,7 @@ package com.example.hello.controller;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,6 +47,20 @@ public class PatternController {
     @GetMapping("/{id}")
     public ResponseEntity<Pattern> findById(@PathVariable Long id) {
         return ResponseEntity.ok(patternService.findById(id));
+    }
+
+    @GetMapping(value = "/{id}/qrcode", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> getQrCode(@PathVariable Long id) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .body(patternService.generatePatternQrCode(id));
+    }
+
+    @GetMapping(value = "/code/{code}/qrcode", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> getQrCodeByCode(@PathVariable String code) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .body(patternService.generatePatternQrCodeByCode(code));
     }
 
     @GetMapping("/code/{code}")

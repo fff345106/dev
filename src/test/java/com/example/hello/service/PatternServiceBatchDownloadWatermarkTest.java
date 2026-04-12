@@ -8,7 +8,10 @@ import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,18 +46,13 @@ class PatternServiceBatchDownloadWatermarkTest {
 
     @BeforeEach
     void setUp() {
-        patternService = new PatternService(patternRepository, patternPendingRepository, imageService, patternCodeService);
+        patternService = new PatternService(patternRepository, patternPendingRepository, imageService, patternCodeService, "https://example.com");
     }
 
     @Test
-    void batchDownload_shouldWriteWatermarkedImagesIntoZip() throws Exception {
-        Pattern pattern = new Pattern();
-        pattern.setId(1L);
-        pattern.setPatternCode("AN-BD-TR-CN-QG-260319-001");
-        pattern.setImageUrl("https://img/pattern-1.png");
-
-        BufferedImage source = buildSolidImage(420, 300, new Color(200, 40, 40));
-        byte[] sourcePng = toPng(source);
+    void batchDownload_shouldWriteMetadataWatermarkIntoZip() throws Exception {
+        Pattern pattern = buildPattern(1L, "AN-BD-TR-CN-QG-260319-001", "https://img/pattern-1.png");
+        byte[] sourcePng = toPng(buildSolidImage(420, 300, new Color(200, 40, 40)));
 
         when(patternRepository.findAllById(List.of(1L))).thenReturn(List.of(pattern));
         when(imageService.download("https://img/pattern-1.png")).thenReturn(responseInputStreamOf(sourcePng, "image/png"));
@@ -62,9 +60,33 @@ class PatternServiceBatchDownloadWatermarkTest {
         ByteArrayOutputStream zipBytes = new ByteArrayOutputStream();
         patternService.batchDownload(List.of(1L), zipBytes);
 
-        BufferedImage downloaded = readFirstZipEntryImage(zipBytes.toByteArray());
+        byte[] downloaded = readFirstZipEntryBytes(zipBytes.toByteArray());
         assertNotNull(downloaded);
-        assertTrue(hasDifferentPixel(source, downloaded));
+        assertPngContainsWatermark(downloaded, pattern.getPatternCode());
+    }
+
+    @Test
+    void download_shouldReturnMetadataWatermarkedImage() throws Exception {
+        Pattern pattern = buildPattern(2L, "AN-BD-TR-CN-QG-260319-002", "https://img/pattern-2.png");
+        byte[] sourcePng = toPng(buildSolidImage(240, 180, new Color(80, 120, 220)));
+
+        when(patternRepository.findById(2L)).thenReturn(java.util.Optional.of(pattern));
+        when(imageService.download("https://img/pattern-2.png")).thenReturn(responseInputStreamOf(sourcePng, "image/png"));
+
+        Map<String, Object> result = patternService.download(2L);
+        InputStream stream = (InputStream) result.get("stream");
+        byte[] bytes = stream.readAllBytes();
+
+        assertNotNull(bytes);
+        assertPngContainsWatermark(bytes, pattern.getPatternCode());
+    }
+
+    private Pattern buildPattern(Long id, String patternCode, String imageUrl) {
+        Pattern pattern = new Pattern();
+        pattern.setId(id);
+        pattern.setPatternCode(patternCode);
+        pattern.setImageUrl(imageUrl);
+        return pattern;
     }
 
     private BufferedImage buildSolidImage(int width, int height, Color color) {
@@ -89,26 +111,18 @@ class PatternServiceBatchDownloadWatermarkTest {
         return new ResponseInputStream<>(response, abortable);
     }
 
-    private BufferedImage readFirstZipEntryImage(byte[] zipData) throws Exception {
+    private byte[] readFirstZipEntryBytes(byte[] zipData) throws Exception {
         try (java.util.zip.ZipInputStream zipIn = new java.util.zip.ZipInputStream(new ByteArrayInputStream(zipData))) {
             java.util.zip.ZipEntry entry = zipIn.getNextEntry();
             assertNotNull(entry);
             ByteArrayOutputStream imageOut = new ByteArrayOutputStream();
             zipIn.transferTo(imageOut);
-            return javax.imageio.ImageIO.read(new ByteArrayInputStream(imageOut.toByteArray()));
+            return imageOut.toByteArray();
         }
     }
 
-    private boolean hasDifferentPixel(BufferedImage a, BufferedImage b) {
-        int width = Math.min(a.getWidth(), b.getWidth());
-        int height = Math.min(a.getHeight(), b.getHeight());
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (a.getRGB(x, y) != b.getRGB(x, y)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+    private void assertPngContainsWatermark(byte[] imageBytes, String patternCode) {
+        String text = new String(imageBytes, StandardCharsets.ISO_8859_1);
+        assertTrue(text.contains("hidden-watermark|patternCode=" + patternCode));
     }
 }

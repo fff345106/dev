@@ -48,6 +48,15 @@ public class PatternPending {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(name = "image_source_type", length = 20)
+    private String imageSourceType;
+
+    @Column(name = "story_text", columnDefinition = "TEXT")
+    private String storyText; // 藏品故事-文字描述
+
+    @Column(name = "story_image_url")
+    private String storyImageUrl; // 藏品故事-图片 (支持PDF)
+
     // 编码相关字段（提交时生成）
     @Column(name = "date_code", length = 6)
     private String dateCode;
@@ -113,6 +122,12 @@ public class PatternPending {
     public void setPeriod(String period) { this.period = period; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getImageSourceType() { return imageSourceType; }
+    public void setImageSourceType(String imageSourceType) { this.imageSourceType = imageSourceType; }
+    public String getStoryText() { return storyText; }
+    public void setStoryText(String storyText) { this.storyText = storyText; }
+    public String getStoryImageUrl() { return storyImageUrl; }
+    public void setStoryImageUrl(String storyImageUrl) { this.storyImageUrl = storyImageUrl; }
     public AuditStatus getStatus() { return status; }
     public void setStatus(AuditStatus status) { this.status = status; }
     public User getSubmitter() { return submitter; }

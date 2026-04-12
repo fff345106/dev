@@ -63,8 +63,9 @@ public class DraftService {
             throw new RuntimeException("无权修改此草稿");
         }
 
-        // 如果图片URL变了，删除旧图片
-        if (draft.getImageUrl() != null && !draft.getImageUrl().equals(request.getImageUrl())) {
+        // 如果图片URL变了，仅删除旧的临时上传图片
+        if (draft.getImageUrl() != null && !draft.getImageUrl().equals(request.getImageUrl())
+                && imageService.shouldDeleteTempImage(draft.getImageUrl(), draft.getImageSourceType())) {
             try {
                 imageService.deleteTempImage(draft.getImageUrl());
             } catch (IOException e) {
@@ -108,8 +109,9 @@ public class DraftService {
             throw new RuntimeException("无权删除此草稿");
         }
 
-        // 删除关联的临时图片
-        if (draft.getImageUrl() != null) {
+        // 仅删除临时上传来源图片
+        if (draft.getImageUrl() != null
+                && imageService.shouldDeleteTempImage(draft.getImageUrl(), draft.getImageSourceType())) {
             try {
                 imageService.deleteTempImage(draft.getImageUrl());
             } catch (IOException e) {
@@ -144,6 +146,9 @@ public class DraftService {
         request.setRegion(draft.getRegion());
         request.setPeriod(draft.getPeriod());
         request.setImageUrl(draft.getImageUrl());
+        request.setImageSourceType(draft.getImageSourceType());
+        request.setStoryText(draft.getStoryText());
+        request.setStoryImageUrl(draft.getStoryImageUrl());
 
         // 提交审核
         PatternPending pending = auditService.submit(request, userId);
@@ -172,23 +177,15 @@ public class DraftService {
             draft.setPeriod(request.getPeriod().toUpperCase());
         }
         draft.setImageUrl(request.getImageUrl());
+        draft.setImageSourceType(imageService.normalizeImageSourceTypeValue(request.getImageSourceType(), request.getImageUrl()));
+        draft.setStoryText(request.getStoryText());
+        draft.setStoryImageUrl(request.getStoryImageUrl());
     }
 
     private void validateDraft(PatternDraft draft) {
-        if (draft.getMainCategory() == null || draft.getMainCategory().isEmpty()) {
-            throw new IllegalArgumentException("主类别不能为空");
-        }
-        if (draft.getSubCategory() == null || draft.getSubCategory().isEmpty()) {
-            throw new IllegalArgumentException("子类别不能为空");
-        }
-        if (draft.getStyle() == null || draft.getStyle().isEmpty()) {
-            throw new IllegalArgumentException("风格不能为空");
-        }
-        if (draft.getRegion() == null || draft.getRegion().isEmpty()) {
-            throw new IllegalArgumentException("地区不能为空");
-        }
-        if (draft.getPeriod() == null || draft.getPeriod().isEmpty()) {
-            throw new IllegalArgumentException("时期不能为空");
+        // 由于功能简化，只保留纹样图片、藏品故事的逻辑，分类字段可选，故不再强制校验分类字段。
+        if (draft.getImageUrl() == null || draft.getImageUrl().isEmpty()) {
+            throw new IllegalArgumentException("纹样图片不能为空");
         }
     }
 }

@@ -10,6 +10,8 @@ public class AiBatchSubmitRequest {
     @NotEmpty(message = "图片URL列表不能为空")
     private List<@NotBlank(message = "图片URL不能为空") String> imageUrls;
 
+    private String imageSourceType;
+
     @Size(min = 2, max = 2, message = "风格代码必须为2位")
     private String style;
 
@@ -21,12 +23,24 @@ public class AiBatchSubmitRequest {
 
     private String descriptionPrefix;
 
+    private String storyText;
+
+    private String storyImageUrl;
+
     public List<String> getImageUrls() {
         return imageUrls;
     }
 
     public void setImageUrls(List<String> imageUrls) {
         this.imageUrls = imageUrls;
+    }
+
+    public String getImageSourceType() {
+        return imageSourceType;
+    }
+
+    public void setImageSourceType(String imageSourceType) {
+        this.imageSourceType = imageSourceType;
     }
 
     public String getStyle() {
@@ -59,5 +73,21 @@ public class AiBatchSubmitRequest {
 
     public void setDescriptionPrefix(String descriptionPrefix) {
         this.descriptionPrefix = descriptionPrefix;
+    }
+
+    public String getStoryText() {
+        return storyText;
+    }
+
+    public void setStoryText(String storyText) {
+        this.storyText = storyText;
+    }
+
+    public String getStoryImageUrl() {
+        return storyImageUrl;
+    }
+
+    public void setStoryImageUrl(String storyImageUrl) {
+        this.storyImageUrl = storyImageUrl;
     }
 }

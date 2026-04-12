@@ -36,6 +36,23 @@ public class ImageController {
     }
 
     /**
+     * 上传故事文件（图片/PDF）到对象存储
+     */
+    @PostMapping("/upload-story-file")
+    public ResponseEntity<Map<String, String>> uploadStoryFile(@RequestParam("file") MultipartFile file) {
+        try {
+            String url = imageService.uploadStoryFile(file);
+            return ResponseEntity.ok(Map.of("url", url, "message", "上传成功"));
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "上传失败: " + e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /**
      * 删除图片
      */
     @DeleteMapping

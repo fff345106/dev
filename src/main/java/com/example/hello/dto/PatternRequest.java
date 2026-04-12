@@ -1,32 +1,32 @@
 package com.example.hello.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public class PatternRequest {
     private String description;
 
-    @NotBlank(message = "主类别代码不能为空")
     @Size(min = 2, max = 2, message = "主类别代码必须为2位")
     private String mainCategory;
 
-    @NotBlank(message = "子类别不能为空")
     @Size(min = 2, max = 2, message = "子类别代码必须为2位")
     private String subCategory;
 
-    @NotBlank(message = "风格不能为空")
     @Size(min = 2, max = 2, message = "风格代码必须为2位")
     private String style;
 
-    @NotBlank(message = "地区不能为空")
     @Size(min = 2, max = 2, message = "地区代码必须为2位")
     private String region;
 
-    @NotBlank(message = "时期不能为空")
     @Size(min = 2, max = 2, message = "时期代码必须为2位")
     private String period;
 
     private String imageUrl;
+
+    private String imageSourceType; // 图片来源: TEMP_UPLOAD/EXTERNAL/LIBRARY
+
+    private String storyText; // 藏品故事-文字描述
+
+    private String storyImageUrl; // 藏品故事-图片 (支持PDF)
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
@@ -42,4 +42,10 @@ public class PatternRequest {
     public void setPeriod(String period) { this.period = period; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getImageSourceType() { return imageSourceType; }
+    public void setImageSourceType(String imageSourceType) { this.imageSourceType = imageSourceType; }
+    public String getStoryText() { return storyText; }
+    public void setStoryText(String storyText) { this.storyText = storyText; }
+    public String getStoryImageUrl() { return storyImageUrl; }
+    public void setStoryImageUrl(String storyImageUrl) { this.storyImageUrl = storyImageUrl; }
 }

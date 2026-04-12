@@ -513,10 +513,10 @@ public class AiPatternRecognitionService {
         String region = normalizeCodeOrDefault(labeledFields.get("region"), "OT");
         String period = normalizeCodeOrDefault(labeledFields.get("period"), "OT");
 
-        String subCategory = patternCodeService.normalizeCode(labeledFields.get("subCategory"));
-        if (subCategory == null) {
-            subCategory = hasSubCategory(mainCategory) ? "OT" : style;
-        }
+        String subCategory = resolveSubCategory(
+                mainCategory,
+                style,
+                patternCodeService.normalizeCode(labeledFields.get("subCategory")));
 
         List<String> keywords = readKeywords(labeledFields.get("keywords"));
         String patternName = firstNonBlank(
@@ -617,10 +617,10 @@ public class AiPatternRecognitionService {
         String region = normalizeCodeOrDefault(firstText(root, "region"), "OT");
         String period = normalizeCodeOrDefault(firstText(root, "period"), "OT");
 
-        String subCategory = patternCodeService.normalizeCode(firstText(root, "subCategory", "sub_category"));
-        if (subCategory == null) {
-            subCategory = hasSubCategory(mainCategory) ? "OT" : style;
-        }
+        String subCategory = resolveSubCategory(
+                mainCategory,
+                style,
+                patternCodeService.normalizeCode(firstText(root, "subCategory", "sub_category")));
 
         List<String> keywords = readKeywords(root.path("keywords"));
         if (keywords.isEmpty()) {
@@ -828,6 +828,13 @@ public class AiPatternRecognitionService {
     private String normalizeCodeOrDefault(String value, String defaultValue) {
         String normalized = patternCodeService.normalizeCode(value);
         return normalized == null ? defaultValue : normalized;
+    }
+
+    private String resolveSubCategory(String mainCategory, String style, String subCategory) {
+        if (!hasSubCategory(mainCategory)) {
+            return style;
+        }
+        return subCategory == null ? "OT" : subCategory;
     }
 
     private boolean hasSubCategory(String mainCategory) {

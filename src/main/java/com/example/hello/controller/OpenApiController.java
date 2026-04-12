@@ -1,22 +1,27 @@
 package com.example.hello.controller;
 
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.HtmlUtils;
 
 import com.example.hello.entity.Pattern;
 import com.example.hello.repository.PatternRepository;
 
 import jakarta.persistence.criteria.Predicate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.HashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/open/patterns")
@@ -84,7 +89,7 @@ public class OpenApiController {
             Map<String, Object> map = new HashMap<>();
             map.put("patternCode", pattern.getPatternCode());
             map.put("imageUrl", pattern.getImageUrl());
-            map.put("description", pattern.getDescription());
+            map.put("description", resolveDisplayDescription(pattern));
             map.put("mainCategory", pattern.getMainCategory());
             map.put("style", pattern.getStyle());
             map.put("region", pattern.getRegion());
@@ -93,5 +98,126 @@ public class OpenApiController {
         });
 
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping(value = "/{code}/table", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> getPatternTable(@PathVariable String code) {
+        Pattern pattern = patternRepository.findByPatternCode(code).orElse(null);
+        if (pattern == null || !"APPROVED".equalsIgnoreCase(pattern.getStatus())) {
+            String notFoundHtml = """
+                    <!doctype html>
+                    <html lang=\"zh-CN\">
+                    <head>
+                      <meta charset=\"UTF-8\" />
+                      <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+                      <title>纹样信息不存在</title>
+                      <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"PingFang SC\", \"Microsoft YaHei\", sans-serif; margin: 24px; color: #222; }
+                        .card { max-width: 720px; margin: 0 auto; border: 1px solid #eee; border-radius: 12px; padding: 20px; box-shadow: 0 6px 24px rgba(0,0,0,.06); }
+                        h1 { margin: 0 0 8px; font-size: 20px; }
+                        p { margin: 0; color: #666; }
+                      </style>
+                    </head>
+                    <body>
+                      <div class=\"card\">
+                        <h1>未找到纹样信息</h1>
+                        <p>请确认二维码是否有效，或联系管理员。</p>
+                      </div>
+                    </body>
+                    </html>
+                    """;
+            return ResponseEntity.status(404)
+                    .contentType(MediaType.TEXT_HTML)
+                    .body(notFoundHtml);
+        }
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+String tableRows = String.join("",
+        row("纹样编码", pattern.getPatternCode()),
+        "<tr><th>描述</th><td class=\"desc\">" + safe(resolveDisplayDescription(pattern)) + "</td></tr>",
+        row("主分类", pattern.getMainCategory()),
+        row("子分类", pattern.getSubCategory()),
+        row("风格", pattern.getStyle()),
+        row("地区", pattern.getRegion()),
+        row("时期", pattern.getPeriod()),
+        row("日期码", pattern.getDateCode()),
+        row("序号", pattern.getSequenceNumber()),
+        row("审核状态", pattern.getStatus()),
+        row("创建时间", pattern.getCreatedAt() == null ? null : dtf.format(pattern.getCreatedAt())),
+        row("更新时间", pattern.getUpdatedAt() == null ? null : dtf.format(pattern.getUpdatedAt())));
+
+        String html = """
+                <!doctype html>
+                <html lang=\"zh-CN\">
+                <head>
+                  <meta charset=\"UTF-8\" />
+                  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+                  <title>纹样信息</title>
+                  <style>
+                    :root { color-scheme: light; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"PingFang SC\", \"Microsoft YaHei\", sans-serif; margin: 20px; color: #222; background: #f7f8fa; }
+                    .container { max-width: 960px; margin: 0 auto; }
+                    .card { background: #fff; border: 1px solid #eee; border-radius: 14px; padding: 18px; box-shadow: 0 6px 24px rgba(0,0,0,.05); }
+                    h1 { margin: 0 0 14px; font-size: 24px; }
+                    table { width: 100%%; border-collapse: collapse; }
+                    th, td { padding: 10px 12px; border-bottom: 1px solid #eee; vertical-align: top; }
+                    th { width: 160px; text-align: left; color: #555; background: #fafafa; }
+                    .desc { white-space: pre-wrap; line-height: 1.6; }
+                    @media (max-width: 820px) { th { width: 120px; } }
+                  </style>
+                </head>
+                <body>
+                  <div class=\"container\">
+                    <div class=\"card\">
+                      <h1>纹样信息</h1>
+                      <table>
+                        %s
+                      </table>
+                    </div>
+                  </div>
+                </body>
+                </html>
+                """.formatted(tableRows);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_HTML)
+                .body(html);
+    }
+
+    private String row(String key, Object value) {
+        return "<tr><th>" + safe(key) + "</th><td>" + safe(value) + "</td></tr>";
+    }
+
+    private String resolveDisplayDescription(Pattern pattern) {
+        if (pattern == null) {
+            return null;
+        }
+        if (hasVisibleText(pattern.getDescription())) {
+            return pattern.getDescription();
+        }
+        return pattern.getStoryText();
+    }
+
+    private boolean hasVisibleText(String text) {
+        if (text == null) {
+            return false;
+        }
+        String normalized = text
+                .replace('\u00A0', ' ')
+                .replaceAll("[\\u200B-\\u200D\\uFEFF]", "")
+                .trim();
+        return !normalized.isEmpty();
+    }
+
+    private String safe(Object value) {
+        if (value == null) {
+            return "-";
+        }
+        String text = String.valueOf(value);
+        if (!hasVisibleText(text)) {
+            return "-";
+        }
+        return HtmlUtils.htmlEscape(text);
     }
 }

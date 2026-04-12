@@ -291,6 +291,30 @@ class AiPatternRecognitionServiceTest {
     }
 
     @Test
+    void recognizeByImageUrl_shouldForceStyleAsSubCategoryWhenMainCategoryHasNoChildrenEvenIfAiReturnsOt() throws Exception {
+        String responseBody = """
+                {
+                  "choices": [
+                    {
+                      "message": {
+                        "content": "{\\\"patternName\\\":\\\"吉祥符号纹\\\",\\\"mainCategory\\\":\\\"SY\\\",\\\"subCategory\\\":\\\"OT\\\",\\\"style\\\":\\\"TR\\\",\\\"region\\\":\\\"CN\\\",\\\"period\\\":\\\"MG\\\",\\\"keywords\\\":[\\\"符号\\\",\\\"传统\\\"]}"
+                      }
+                    }
+                  ]
+                }
+                """;
+        String baseUrl = startServer(200, responseBody, null, null, null);
+
+        AiPatternRecognitionService service = createService(buildProperties(baseUrl));
+        AiPatternRecognitionService.RecognitionResult result = service.recognizeByImageUrl("https://img/symbol.png");
+
+        assertEquals("SY", result.getMainCategory());
+        assertEquals("TR", result.getSubCategory());
+        assertEquals("TR", result.getStyle());
+        assertTrue(result.isValid());
+    }
+
+    @Test
     void recognizeByImageUrl_shouldFallbackToTextMappingWhenBotReplyIsPlainText() throws Exception {
         String responseBody = """
                 {

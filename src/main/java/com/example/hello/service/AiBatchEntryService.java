@@ -190,7 +190,10 @@ public class AiBatchEntryService {
         if (!previewItem.isValid()) {
             return buildPreviewFailure(previewItem);
         }
-        return submitConfirmedItem(toConfirmItem(previewItem, request.getDescriptionPrefix()), submitterId);
+        AiBatchConfirmItem confirmItem = toConfirmItem(previewItem, request.getDescriptionPrefix());
+        confirmItem.setStoryText(request.getStoryText());
+        confirmItem.setStoryImageUrl(request.getStoryImageUrl());
+        return submitConfirmedItem(confirmItem, submitterId);
     }
 
     private AiBatchSubmitRequest copySubmitRequest(AiBatchSubmitRequest request) {
@@ -198,10 +201,13 @@ public class AiBatchEntryService {
         if (request.getImageUrls() != null) {
             requestCopy.setImageUrls(new ArrayList<>(request.getImageUrls()));
         }
+        requestCopy.setImageSourceType(request.getImageSourceType());
         requestCopy.setStyle(request.getStyle());
         requestCopy.setRegion(request.getRegion());
         requestCopy.setPeriod(request.getPeriod());
         requestCopy.setDescriptionPrefix(request.getDescriptionPrefix());
+        requestCopy.setStoryText(request.getStoryText());
+        requestCopy.setStoryImageUrl(request.getStoryImageUrl());
         return requestCopy;
     }
 
@@ -304,6 +310,8 @@ public class AiBatchEntryService {
             patternRequest.setRegion(codes.region());
             patternRequest.setPeriod(codes.period());
             patternRequest.setImageUrl(confirmItem.getImageUrl());
+            patternRequest.setStoryText(confirmItem.getStoryText());
+            patternRequest.setStoryImageUrl(confirmItem.getStoryImageUrl());
 
             PatternPending pending = auditService.submit(patternRequest, submitterId);
             itemResult.setSuccess(true);
@@ -354,6 +362,7 @@ public class AiBatchEntryService {
         AiBatchConfirmItem confirmItem = new AiBatchConfirmItem();
         confirmItem.setImageUrl(previewItem.getImageUrl());
         confirmItem.setPatternName(previewItem.getPatternName());
+        confirmItem.setImageSourceType(null);
         confirmItem.setDescription(previewItem.getDescription());
         confirmItem.setDescriptionPrefix(descriptionPrefix);
         confirmItem.setMainCategory(previewItem.getMainCategory());

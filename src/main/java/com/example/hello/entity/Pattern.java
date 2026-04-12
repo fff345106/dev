@@ -50,6 +50,15 @@ public class Pattern {
     @Column(name = "image_url")
     private String imageUrl;  // 纹样图片URL
 
+    @Column(name = "image_source_type", length = 20)
+    private String imageSourceType; // 图片来源: TEMP_UPLOAD/EXTERNAL/LIBRARY
+
+    @Column(name = "story_text", columnDefinition = "TEXT")
+    private String storyText; // 藏品故事-文字描述
+
+    @Column(name = "story_image_url")
+    private String storyImageUrl; // 藏品故事-图片 (支持PDF)
+
     @Column(name = "image_hash", length = 64)
     private String imageHash;  // 图片SHA-256哈希（十六进制）
 
@@ -111,6 +120,12 @@ public class Pattern {
     public void setPatternCode(String patternCode) { this.patternCode = patternCode; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getImageSourceType() { return imageSourceType; }
+    public void setImageSourceType(String imageSourceType) { this.imageSourceType = imageSourceType; }
+    public String getStoryText() { return storyText; }
+    public void setStoryText(String storyText) { this.storyText = storyText; }
+    public String getStoryImageUrl() { return storyImageUrl; }
+    public void setStoryImageUrl(String storyImageUrl) { this.storyImageUrl = storyImageUrl; }
     public String getImageHash() { return imageHash; }
     public void setImageHash(String imageHash) { this.imageHash = imageHash; }
     public String getHashAlgorithm() { return hashAlgorithm; }

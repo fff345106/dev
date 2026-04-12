@@ -7,31 +7,32 @@ public class AiBatchConfirmItem {
     @NotBlank(message = "图片URL不能为空")
     private String imageUrl;
 
+    private String imageSourceType;
+
     private String patternName;
 
     private String description;
 
     private String descriptionPrefix;
 
-    @NotBlank(message = "主类别代码不能为空")
     @Size(min = 2, max = 2, message = "主类别代码必须为2位")
     private String mainCategory;
 
-    @NotBlank(message = "子类别代码不能为空")
     @Size(min = 2, max = 2, message = "子类别代码必须为2位")
     private String subCategory;
 
-    @NotBlank(message = "风格代码不能为空")
     @Size(min = 2, max = 2, message = "风格代码必须为2位")
     private String style;
 
-    @NotBlank(message = "地区代码不能为空")
     @Size(min = 2, max = 2, message = "地区代码必须为2位")
     private String region;
 
-    @NotBlank(message = "时期代码不能为空")
     @Size(min = 2, max = 2, message = "时期代码必须为2位")
     private String period;
+
+    private String storyText;
+
+    private String storyImageUrl;
 
     public String getImageUrl() {
         return imageUrl;
@@ -39,6 +40,14 @@ public class AiBatchConfirmItem {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getImageSourceType() {
+        return imageSourceType;
+    }
+
+    public void setImageSourceType(String imageSourceType) {
+        this.imageSourceType = imageSourceType;
     }
 
     public String getPatternName() {
@@ -103,5 +112,21 @@ public class AiBatchConfirmItem {
 
     public void setPeriod(String period) {
         this.period = period;
+    }
+
+    public String getStoryText() {
+        return storyText;
+    }
+
+    public void setStoryText(String storyText) {
+        this.storyText = storyText;
+    }
+
+    public String getStoryImageUrl() {
+        return storyImageUrl;
+    }
+
+    public void setStoryImageUrl(String storyImageUrl) {
+        this.storyImageUrl = storyImageUrl;
     }
 }

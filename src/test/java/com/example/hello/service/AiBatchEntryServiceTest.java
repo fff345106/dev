@@ -221,6 +221,8 @@ class AiBatchEntryServiceTest {
         request.setStyle("DE");
         request.setRegion("GD");
         request.setPeriod("MG");
+        request.setStoryText("这是一段故事");
+        request.setStoryImageUrl("https://img/story.pdf");
 
         when(aiPatternRecognitionService.recognizeByImageUrl("https://img/u1.png"))
                 .thenReturn(new AiPatternRecognitionService.RecognitionResult(
@@ -265,6 +267,8 @@ class AiBatchEntryServiceTest {
         assertEquals("GD", submitted.getRegion());
         assertEquals("MG", submitted.getPeriod());
         assertEquals("鸟纹", submitted.getDescription());
+        assertEquals("这是一段故事", submitted.getStoryText());
+        assertEquals("https://img/story.pdf", submitted.getStoryImageUrl());
     }
 
     @Test
