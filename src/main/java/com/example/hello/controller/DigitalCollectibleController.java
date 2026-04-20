@@ -1,5 +1,7 @@
 package com.example.hello.controller;
 
+import java.util.Map;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -7,9 +9,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.hello.dto.DigitalCollectibleCreateRequest;
@@ -53,6 +57,32 @@ public class DigitalCollectibleController {
             @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(digitalCollectibleService.findMyById(id, userId));
+    }
+
+    @PutMapping("/my/{id}/visibility")
+    public ResponseEntity<DigitalCollectible> updateVisibility(
+            @PathVariable Long id,
+            @RequestParam(value = "visible", required = false) Boolean visible,
+            @RequestBody(required = false) Map<String, Object> body,
+            @RequestHeader("Authorization") String token) {
+        if (visible == null && body != null) {
+            Object value = body.get("visible");
+            if (value == null) {
+                value = body.get("isVisible");
+            }
+            if (value instanceof Boolean boolValue) {
+                visible = boolValue;
+            } else if (value instanceof String strValue) {
+                visible = Boolean.parseBoolean(strValue);
+            }
+        }
+
+        if (visible == null) {
+            throw new IllegalArgumentException("visible参数不能为空");
+        }
+
+        Long userId = getUserIdFromToken(token);
+        return ResponseEntity.ok(digitalCollectibleService.updateVisibility(id, userId, visible));
     }
 
     private Long getUserIdFromToken(String token) {

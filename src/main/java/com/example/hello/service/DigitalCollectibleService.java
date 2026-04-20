@@ -39,28 +39,17 @@ public class DigitalCollectibleService {
         User createdBy = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
-        CollectibleEntryMode entryMode = request.getEntryMode();
-        if (entryMode == null) {
-            throw new IllegalArgumentException("录入模式不能为空");
-        }
-
         String patternImageUrl = safeTrim(request.getPatternImageUrl());
         if (isBlank(patternImageUrl)) {
             throw new IllegalArgumentException("纹样图片不能为空");
         }
 
         DigitalCollectible collectible = new DigitalCollectible();
-        collectible.setEntryMode(entryMode.name());
+        collectible.setEntryMode(CollectibleEntryMode.LIBRARY.name());
         collectible.setPatternImageUrl(patternImageUrl);
         collectible.setCreatedBy(createdBy);
 
-        if (entryMode == CollectibleEntryMode.UPLOAD) {
-            validateUploadMode(request, patternImageUrl, collectible);
-        } else if (entryMode == CollectibleEntryMode.LIBRARY) {
-            validateLibraryMode(request, patternImageUrl, collectible);
-        } else {
-            throw new IllegalArgumentException("不支持的录入模式: " + entryMode);
-        }
+        validateLibraryMode(request, patternImageUrl, collectible);
 
         return digitalCollectibleRepository.save(collectible);
     }
@@ -78,33 +67,11 @@ public class DigitalCollectibleService {
         return collectible;
     }
 
-    private void validateUploadMode(
-            DigitalCollectibleCreateRequest request,
-            String patternImageUrl,
-            DigitalCollectible collectible) {
-        String sourceType = safeTrim(request.getPatternImageSourceType());
-        if (!isBlank(sourceType) && !ImageSourceType.TEMP_UPLOAD.name().equalsIgnoreCase(sourceType)) {
-            throw new IllegalArgumentException("UPLOAD模式下纹样图片来源必须为TEMP_UPLOAD");
-        }
-
-        ImageSourceType resolvedSourceType = imageService.resolveImageSourceType(sourceType, patternImageUrl);
-        if (resolvedSourceType != ImageSourceType.TEMP_UPLOAD) {
-            throw new IllegalArgumentException("UPLOAD模式下纹样图片必须来自临时上传");
-        }
-
-        String storyText = safeTrim(request.getStoryText());
-        String storyFileUrl = safeTrim(request.getStoryFileUrl());
-        if (isBlank(storyText)) {
-            throw new IllegalArgumentException("UPLOAD模式下藏品故事文本不能为空");
-        }
-        if (isBlank(storyFileUrl)) {
-            throw new IllegalArgumentException("UPLOAD模式下藏品故事文件不能为空");
-        }
-
-        collectible.setPatternImageSourceType(ImageSourceType.TEMP_UPLOAD.name());
-        collectible.setSourcePatternId(null);
-        collectible.setStoryText(storyText);
-        collectible.setStoryFileUrl(storyFileUrl);
+    @Transactional
+    public DigitalCollectible updateVisibility(Long id, Long userId, Boolean visible) {
+        DigitalCollectible collectible = findMyById(id, userId);
+        collectible.setIsVisible(Boolean.TRUE.equals(visible));
+        return digitalCollectibleRepository.save(collectible);
     }
 
     private void validateLibraryMode(
@@ -128,6 +95,7 @@ public class DigitalCollectibleService {
 
         collectible.setPatternImageSourceType(ImageSourceType.LIBRARY.name());
         collectible.setSourcePatternId(sourcePatternId);
+        collectible.setDescription(safeTrim(request.getDescription()));
         collectible.setStoryText(safeTrim(request.getStoryText()));
         collectible.setStoryFileUrl(safeTrim(request.getStoryFileUrl()));
     }

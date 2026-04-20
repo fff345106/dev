@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.example.hello.dto.PatternRequest;
 import com.example.hello.entity.Pattern;
@@ -166,5 +168,19 @@ public class PatternController {
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"patterns.zip\"")
                 .contentType(org.springframework.http.MediaType.parseMediaType("application/zip"))
                 .body(stream);
+    }
+
+    @PostMapping(value = "/watermark/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<java.util.Map<String, Object>> verifyWatermark(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("请上传需要验证的图片文件");
+        }
+
+        try (java.io.InputStream inputStream = file.getInputStream()) {
+            java.util.Map<String, Object> result = patternService.verifyRobustWatermark(inputStream);
+            return ResponseEntity.ok(result);
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("验证水印失败: " + e.getMessage(), e);
+        }
     }
 }

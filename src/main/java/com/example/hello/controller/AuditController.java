@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.hello.dto.AiBatchConfirmRequest;
 import com.example.hello.dto.AiBatchPreviewRequest;
 import com.example.hello.dto.AiBatchPreviewResponse;
+import com.example.hello.dto.AiBatchPreviewTaskProgressResponse;
 import com.example.hello.dto.AiBatchSubmitRequest;
 import com.example.hello.dto.AiBatchSubmitResponse;
 import com.example.hello.dto.AiBatchTaskProgressResponse;
@@ -65,6 +66,24 @@ public class AuditController {
     public ResponseEntity<AiBatchPreviewResponse> aiBatchPreview(
             @Valid @RequestBody AiBatchPreviewRequest request) {
         return ResponseEntity.ok(aiBatchEntryService.preview(request));
+    }
+
+    /**
+     * AI 批量识别预览异步任务启动（用于前端进度展示）
+     */
+    @PostMapping("/ai-batch-preview/start")
+    public ResponseEntity<AiBatchTaskStartResponse> aiBatchPreviewStart(
+            @Valid @RequestBody AiBatchPreviewRequest request) {
+        return ResponseEntity.ok(aiBatchEntryService.startPreviewTask(request));
+    }
+
+    /**
+     * AI 批量识别预览异步任务进度查询
+     */
+    @GetMapping("/ai-batch-preview/progress/{taskId}")
+    public ResponseEntity<AiBatchPreviewTaskProgressResponse> aiBatchPreviewProgress(
+            @PathVariable String taskId) {
+        return ResponseEntity.ok(aiBatchEntryService.getPreviewTaskProgress(taskId));
     }
 
     /**

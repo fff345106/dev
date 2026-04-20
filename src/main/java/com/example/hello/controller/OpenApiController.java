@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.HtmlUtils;
 
+import com.example.hello.dto.PatternDetailResponse;
 import com.example.hello.entity.Pattern;
 import com.example.hello.repository.PatternRepository;
 
@@ -98,6 +99,24 @@ public class OpenApiController {
         });
 
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/{code}/detail")
+    public ResponseEntity<PatternDetailResponse> getPatternDetail(@PathVariable String code) {
+        Pattern pattern = patternRepository.findByPatternCode(code).orElse(null);
+        if (pattern == null || !"APPROVED".equalsIgnoreCase(pattern.getStatus())) {
+            return ResponseEntity.notFound().build();
+        }
+
+        PatternDetailResponse response = new PatternDetailResponse();
+        response.setId(pattern.getId());
+        response.setTitle(resolveTitle(pattern));
+        response.setPatternCode(pattern.getPatternCode());
+        response.setImage(pattern.getImageUrl());
+        response.setDesc(resolveShortDescription(pattern));
+        response.setStory(splitStoryParagraphs(pattern.getStoryText()));
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping(value = "/{code}/table", produces = MediaType.TEXT_HTML_VALUE)
@@ -187,6 +206,54 @@ String tableRows = String.join("",
 
     private String row(String key, Object value) {
         return "<tr><th>" + safe(key) + "</th><td>" + safe(value) + "</td></tr>";
+    }
+
+    private String resolveTitle(Pattern pattern) {
+        String titleFromDescription = firstNonEmptyLine(pattern == null ? null : pattern.getDescription());
+        if (hasVisibleText(titleFromDescription)) {
+            return titleFromDescription;
+        }
+
+        String titleFromStory = firstNonEmptyLine(pattern == null ? null : pattern.getStoryText());
+        if (hasVisibleText(titleFromStory)) {
+            return titleFromStory;
+        }
+
+        return "无标题作品";
+    }
+
+    private String resolveShortDescription(Pattern pattern) {
+        String line = firstNonEmptyLine(resolveDisplayDescription(pattern));
+        return hasVisibleText(line) ? line : "";
+    }
+
+    private List<String> splitStoryParagraphs(String storyText) {
+        List<String> paragraphs = new ArrayList<>();
+        if (!hasVisibleText(storyText)) {
+            return paragraphs;
+        }
+
+        String[] lines = storyText.split("\\r?\\n");
+        for (String line : lines) {
+            if (hasVisibleText(line)) {
+                paragraphs.add(line.trim());
+            }
+        }
+        return paragraphs;
+    }
+
+    private String firstNonEmptyLine(String text) {
+        if (!hasVisibleText(text)) {
+            return null;
+        }
+
+        String[] lines = text.split("\\r?\\n");
+        for (String line : lines) {
+            if (hasVisibleText(line)) {
+                return line.trim();
+            }
+        }
+        return null;
     }
 
     private String resolveDisplayDescription(Pattern pattern) {

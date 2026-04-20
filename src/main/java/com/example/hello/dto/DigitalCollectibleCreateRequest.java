@@ -3,11 +3,9 @@ package com.example.hello.dto;
 import com.example.hello.enums.CollectibleEntryMode;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 public class DigitalCollectibleCreateRequest {
 
-    @NotNull(message = "录入模式不能为空")
     private CollectibleEntryMode entryMode;
 
     @NotBlank(message = "纹样图片不能为空")
@@ -16,6 +14,8 @@ public class DigitalCollectibleCreateRequest {
     private String patternImageSourceType;
 
     private Long sourcePatternId;
+
+    private String description;
 
     private String storyText;
 
@@ -51,6 +51,14 @@ public class DigitalCollectibleCreateRequest {
 
     public void setSourcePatternId(Long sourcePatternId) {
         this.sourcePatternId = sourcePatternId;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public String getStoryText() {

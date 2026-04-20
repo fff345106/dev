@@ -1,26 +1,15 @@
 package com.example.hello.service;
 
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import javax.imageio.IIOImage;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageTypeSpecifier;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.metadata.IIOMetadataNode;
-import javax.imageio.stream.ImageOutputStream;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,19 +37,32 @@ public class PatternService {
     private final PatternPendingRepository patternPendingRepository;
     private final ImageService imageService;
     private final PatternCodeService patternCodeService;
+    private final DwtSvdWatermarkService dwtSvdWatermarkService;
     private final String publicBaseUrl;
 
+    @Autowired
     public PatternService(
             PatternRepository patternRepository,
             PatternPendingRepository patternPendingRepository,
             ImageService imageService,
             PatternCodeService patternCodeService,
             @Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl) {
+        this(patternRepository, patternPendingRepository, imageService, patternCodeService, publicBaseUrl, new DwtSvdWatermarkService());
+    }
+
+    PatternService(
+            PatternRepository patternRepository,
+            PatternPendingRepository patternPendingRepository,
+            ImageService imageService,
+            PatternCodeService patternCodeService,
+            String publicBaseUrl,
+            DwtSvdWatermarkService dwtSvdWatermarkService) {
         this.patternRepository = patternRepository;
         this.patternPendingRepository = patternPendingRepository;
         this.imageService = imageService;
         this.patternCodeService = patternCodeService;
         this.publicBaseUrl = publicBaseUrl;
+        this.dwtSvdWatermarkService = dwtSvdWatermarkService;
     }
 
     public Pattern create(PatternRequest request) {
@@ -259,7 +261,7 @@ public class PatternService {
     }
 
     /**
-     * 下载纹样图片（写入元数据隐藏水印）
+     * 下载纹样图片（写入DWT-SVD鲁棒水印）
      * @return Pair<InputStream, Filename>
      */
     public java.util.Map<String, Object> download(Long id) throws IOException {
@@ -268,24 +270,24 @@ public class PatternService {
             throw new RuntimeException("该纹样没有图片");
         }
 
-        String extension = extractExtension(pattern.getImageUrl());
-        String filename = pattern.getPatternCode() + extension;
+        String outputExtension = ".png";
+        String filename = pattern.getPatternCode() + outputExtension;
         String hiddenWatermark = buildHiddenWatermark(pattern.getPatternCode());
 
         byte[] watermarked;
         try (InputStream inputStream = imageService.download(pattern.getImageUrl())) {
-            watermarked = addMetadataWatermark(inputStream, hiddenWatermark, extension);
+            watermarked = addRobustWatermark(inputStream, hiddenWatermark, outputExtension);
         }
 
         return java.util.Map.of(
             "stream", new ByteArrayInputStream(watermarked),
             "filename", filename,
-            "contentType", resolveContentTypeByExtension(extension)
+            "contentType", resolveContentTypeByExtension(outputExtension)
         );
     }
 
     /**
-     * 批量下载纹样图片（写入元数据隐藏水印）
+     * 批量下载纹样图片（写入DWT-SVD鲁棒水印）
      */
     public void batchDownload(List<Long> ids, java.io.OutputStream outputStream) throws IOException {
         List<Pattern> patterns = patternRepository.findAllById(ids);
@@ -298,18 +300,18 @@ public class PatternService {
                     continue;
                 }
 
-                String extension = extractExtension(pattern.getImageUrl());
-                String baseFilename = pattern.getPatternCode() + extension;
+                String outputExtension = ".png";
+                String baseFilename = pattern.getPatternCode() + outputExtension;
                 String filename = baseFilename;
                 int counter = 1;
                 while (usedFilenames.contains(filename)) {
-                    filename = pattern.getPatternCode() + "_" + counter + extension;
+                    filename = pattern.getPatternCode() + "_" + counter + outputExtension;
                     counter++;
                 }
                 usedFilenames.add(filename);
 
                 try (InputStream inputStream = imageService.download(pattern.getImageUrl())) {
-                    byte[] watermarked = addMetadataWatermark(inputStream, buildHiddenWatermark(pattern.getPatternCode()), extension);
+                    byte[] watermarked = addRobustWatermark(inputStream, buildHiddenWatermark(pattern.getPatternCode()), outputExtension);
 
                     java.util.zip.ZipEntry zipEntry = new java.util.zip.ZipEntry(filename);
                     zipOut.putNextEntry(zipEntry);
@@ -323,92 +325,30 @@ public class PatternService {
     }
 
     private String buildHiddenWatermark(String patternCode) {
-        return "hidden-watermark|patternCode=" + patternCode + "|generatedAt=" + Instant.now();
+        String code = (patternCode == null) ? "" : patternCode.trim();
+        if (code.isEmpty()) {
+            return "WM";
+        }
+        return "WM:" + code;
     }
 
-    private byte[] addMetadataWatermark(InputStream sourceStream, String watermarkText, String extension) throws IOException {
-        BufferedImage source = ImageIO.read(sourceStream);
-        if (source == null) {
-            throw new IOException("不支持的图片格式，无法写入隐藏水印");
-        }
-
-        String format = normalizeImageFormat(extension);
-        if (format == null) {
-            throw new IOException("不支持的图片格式: " + extension);
-        }
-
-        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName(format);
-        if (!writers.hasNext()) {
-            throw new IOException("未找到可用图片写入器: " + format);
-        }
-
-        ImageWriter writer = writers.next();
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             ImageOutputStream ios = ImageIO.createImageOutputStream(baos)) {
-            writer.setOutput(ios);
-            ImageWriteParam writeParam = writer.getDefaultWriteParam();
-            IIOMetadata metadata = writer.getDefaultImageMetadata(new ImageTypeSpecifier(source), writeParam);
-            IIOMetadata injectedMetadata = injectHiddenMetadata(metadata, format, watermarkText);
-            writer.write(null, new IIOImage(source, null, injectedMetadata), writeParam);
-            ios.flush();
-            return baos.toByteArray();
-        } finally {
-            writer.dispose();
-        }
-    }
-
-    private IIOMetadata injectHiddenMetadata(IIOMetadata metadata, String format, String watermarkText) {
-        if (metadata == null || watermarkText == null || watermarkText.isBlank()) {
-            return metadata;
-        }
-
+    private byte[] addRobustWatermark(InputStream sourceStream, String watermarkText, String extension) throws IOException {
+        byte[] original = sourceStream.readAllBytes();
         try {
-            if ("png".equals(format)) {
-                IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree("javax_imageio_png_1.0");
-                IIOMetadataNode textNode = findOrCreateChild(root, "tEXt");
-                IIOMetadataNode entry = new IIOMetadataNode("tEXtEntry");
-                entry.setAttribute("keyword", "Comment");
-                entry.setAttribute("value", watermarkText);
-                textNode.appendChild(entry);
-                metadata.setFromTree("javax_imageio_png_1.0", root);
-                return metadata;
-            }
-
-            if ("jpeg".equals(format)) {
-                IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree("javax_imageio_jpeg_image_1.0");
-                IIOMetadataNode markerSequence = findOrCreateChild(root, "markerSequence");
-                IIOMetadataNode com = new IIOMetadataNode("com");
-                com.setAttribute("comment", watermarkText);
-                markerSequence.appendChild(com);
-                metadata.setFromTree("javax_imageio_jpeg_image_1.0", root);
-                return metadata;
-            }
-
-            if (metadata.isStandardMetadataFormatSupported()) {
-                IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree("javax_imageio_1.0");
-                IIOMetadataNode text = findOrCreateChild(root, "Text");
-                IIOMetadataNode textEntry = new IIOMetadataNode("TextEntry");
-                textEntry.setAttribute("keyword", "Comment");
-                textEntry.setAttribute("value", watermarkText);
-                textEntry.setAttribute("encoding", StandardCharsets.UTF_8.name());
-                text.appendChild(textEntry);
-                metadata.setFromTree("javax_imageio_1.0", root);
-            }
-        } catch (Exception ignored) {
-            // 元数据写入失败时保持可下载，避免影响主流程。
+            return dwtSvdWatermarkService.embed(new ByteArrayInputStream(original), watermarkText, extension);
+        } catch (Exception e) {
+            System.err.println("DWT-SVD水印嵌入失败，降级返回原图: " + e.getMessage());
+            return original;
         }
-        return metadata;
     }
 
-    private IIOMetadataNode findOrCreateChild(IIOMetadataNode root, String nodeName) {
-        for (int i = 0; i < root.getLength(); i++) {
-            if (nodeName.equals(root.item(i).getNodeName())) {
-                return (IIOMetadataNode) root.item(i);
-            }
-        }
-        IIOMetadataNode child = new IIOMetadataNode(nodeName);
-        root.appendChild(child);
-        return child;
+    public java.util.Map<String, Object> verifyRobustWatermark(InputStream imageStream) throws IOException {
+        DwtSvdWatermarkService.WatermarkExtractResult result = dwtSvdWatermarkService.extract(imageStream);
+        return java.util.Map.of(
+                "hasWatermark", result.isHasWatermark(),
+                "decodedText", result.getDecodedText() == null ? "" : result.getDecodedText(),
+                "confidence", result.getConfidence(),
+                "message", result.getMessage());
     }
 
     private String extractExtension(String imageUrl) {

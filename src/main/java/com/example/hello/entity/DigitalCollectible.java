@@ -37,6 +37,9 @@ public class DigitalCollectible {
     @Column(name = "source_pattern_id")
     private Long sourcePatternId;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "story_text", columnDefinition = "TEXT")
     private String storyText;
 
@@ -53,6 +56,9 @@ public class DigitalCollectible {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "is_visible", nullable = false)
+    private Boolean isVisible = false;
 
     @PrePersist
     protected void onCreate() {
@@ -105,6 +111,14 @@ public class DigitalCollectible {
         this.sourcePatternId = sourcePatternId;
     }
 
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
     public String getStoryText() {
         return storyText;
     }
@@ -143,5 +157,17 @@ public class DigitalCollectible {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Boolean getIsVisible() {
+        return isVisible;
+    }
+
+    public Boolean getVisible() {
+        return isVisible;
+    }
+
+    public void setIsVisible(Boolean isVisible) {
+        this.isVisible = isVisible;
     }
 }

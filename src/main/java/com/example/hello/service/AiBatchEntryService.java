@@ -17,6 +17,7 @@ import com.example.hello.dto.AiBatchConfirmRequest;
 import com.example.hello.dto.AiBatchPreviewItem;
 import com.example.hello.dto.AiBatchPreviewRequest;
 import com.example.hello.dto.AiBatchPreviewResponse;
+import com.example.hello.dto.AiBatchPreviewTaskProgressResponse;
 import com.example.hello.dto.AiBatchSubmitItemResult;
 import com.example.hello.dto.AiBatchSubmitRequest;
 import com.example.hello.dto.AiBatchSubmitResponse;
@@ -37,6 +38,7 @@ public class AiBatchEntryService {
     private final PatternCodeService patternCodeService;
     private final Executor aiBatchExecutor;
     private final ConcurrentMap<String, BatchSubmitTaskState> taskStates = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, BatchPreviewTaskState> previewTaskStates = new ConcurrentHashMap<>();
 
     public AiBatchEntryService(
             AiPatternRecognitionService aiPatternRecognitionService,
@@ -135,6 +137,45 @@ public class AiBatchEntryService {
         return response;
     }
 
+    public AiBatchTaskStartResponse startPreviewTask(AiBatchPreviewRequest request) {
+        AiBatchPreviewRequest requestCopy = copyPreviewRequest(request);
+        int total = requestCopy.getImageUrls() == null ? 0 : requestCopy.getImageUrls().size();
+        String taskId = UUID.randomUUID().toString().replace("-", "");
+
+        BatchPreviewTaskState state = new BatchPreviewTaskState(taskId, total);
+        previewTaskStates.put(taskId, state);
+
+        CompletableFuture.runAsync(() -> executePreviewTask(taskId, requestCopy), aiBatchExecutor);
+
+        AiBatchTaskStartResponse response = new AiBatchTaskStartResponse();
+        response.setTaskId(taskId);
+        response.setTotal(total);
+        response.setStatus(TASK_RUNNING);
+        return response;
+    }
+
+    public AiBatchPreviewTaskProgressResponse getPreviewTaskProgress(String taskId) {
+        BatchPreviewTaskState state = previewTaskStates.get(taskId);
+        if (state == null) {
+            throw new RuntimeException("任务不存在: " + taskId);
+        }
+
+        AiBatchPreviewTaskProgressResponse response = new AiBatchPreviewTaskProgressResponse();
+        response.setTaskId(state.getTaskId());
+        response.setStatus(state.getStatus());
+        response.setTotal(state.getTotal());
+        response.setProcessed(state.getProcessed());
+        response.setValidCount(state.getValidCount());
+        response.setInvalidCount(state.getInvalidCount());
+        response.setProgressPercent(state.getProgressPercent());
+        response.setCompleted(state.isCompleted());
+        response.setError(state.getError());
+        response.setStartedAtEpochMillis(state.getStartedAtEpochMillis());
+        response.setFinishedAtEpochMillis(state.getFinishedAtEpochMillis());
+        response.setItems(state.copyItems());
+        return response;
+    }
+
     private void executeSubmitTask(String taskId, AiBatchSubmitRequest request, Long submitterId) {
         BatchSubmitTaskState state = taskStates.get(taskId);
         if (state == null) {
@@ -148,6 +189,48 @@ public class AiBatchEntryService {
                 final String imageUrl = imageUrls.get(index);
                 CompletableFuture<Void> future = CompletableFuture
                         .supplyAsync(() -> processSingleItem(request, submitterId, imageUrl), aiBatchExecutor)
+                        .thenAccept(itemResult -> state.onItemProcessed(currentIndex, itemResult));
+                futures.add(future);
+            }
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            state.markCompleted();
+        } catch (Exception e) {
+            state.markFailed(e.getMessage());
+        }
+    }
+
+    private void executePreviewTask(String taskId, AiBatchPreviewRequest request) {
+        BatchPreviewTaskState state = previewTaskStates.get(taskId);
+        if (state == null) {
+            return;
+        }
+        try {
+            String styleOverride = patternCodeService.normalizeCode(request.getStyle());
+            String regionOverride = patternCodeService.normalizeCode(request.getRegion());
+            String periodOverride = patternCodeService.normalizeCode(request.getPeriod());
+
+            String defaultStyle = patternCodeService.normalizeCode(aiProperties.getDefaultStyle());
+            String defaultRegion = patternCodeService.normalizeCode(aiProperties.getDefaultRegion());
+            String defaultPeriod = patternCodeService.normalizeCode(aiProperties.getDefaultPeriod());
+
+            List<String> imageUrls = request.getImageUrls() == null ? List.of() : request.getImageUrls();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            for (int index = 0; index < imageUrls.size(); index++) {
+                final int currentIndex = index;
+                final String imageUrl = imageUrls.get(index);
+                CompletableFuture<Void> future = CompletableFuture
+                        .supplyAsync(
+                                () -> buildPreviewItem(
+                                        imageUrl,
+                                        request.getDescriptionPrefix(),
+                                        styleOverride,
+                                        regionOverride,
+                                        periodOverride,
+                                        defaultStyle,
+                                        defaultRegion,
+                                        defaultPeriod),
+                                aiBatchExecutor)
                         .thenAccept(itemResult -> state.onItemProcessed(currentIndex, itemResult));
                 futures.add(future);
             }
@@ -194,6 +277,18 @@ public class AiBatchEntryService {
         confirmItem.setStoryText(request.getStoryText());
         confirmItem.setStoryImageUrl(request.getStoryImageUrl());
         return submitConfirmedItem(confirmItem, submitterId);
+    }
+
+    private AiBatchPreviewRequest copyPreviewRequest(AiBatchPreviewRequest request) {
+        AiBatchPreviewRequest requestCopy = new AiBatchPreviewRequest();
+        if (request.getImageUrls() != null) {
+            requestCopy.setImageUrls(new ArrayList<>(request.getImageUrls()));
+        }
+        requestCopy.setStyle(request.getStyle());
+        requestCopy.setRegion(request.getRegion());
+        requestCopy.setPeriod(request.getPeriod());
+        requestCopy.setDescriptionPrefix(request.getDescriptionPrefix());
+        return requestCopy;
     }
 
     private AiBatchSubmitRequest copySubmitRequest(AiBatchSubmitRequest request) {
@@ -382,6 +477,108 @@ public class AiBatchEntryService {
         response.setFailCount(items.size() - successCount);
         response.setItems(items);
         return response;
+    }
+
+    private static final class BatchPreviewTaskState {
+        private final String taskId;
+        private final long startedAtEpochMillis;
+        private volatile Long finishedAtEpochMillis;
+        private volatile String status;
+        private final int total;
+        private volatile int processed;
+        private volatile int validCount;
+        private volatile int invalidCount;
+        private volatile String error;
+        private final AiBatchPreviewItem[] items;
+
+        private BatchPreviewTaskState(String taskId, int total) {
+            this.taskId = taskId;
+            this.total = total;
+            this.status = TASK_RUNNING;
+            this.startedAtEpochMillis = System.currentTimeMillis();
+            this.items = new AiBatchPreviewItem[total];
+        }
+
+        private synchronized void onItemProcessed(int index, AiBatchPreviewItem itemResult) {
+            if (index < 0 || index >= total || items[index] != null) {
+                return;
+            }
+            items[index] = itemResult;
+            processed++;
+            if (itemResult.isValid()) {
+                validCount++;
+            } else {
+                invalidCount++;
+            }
+        }
+
+        private synchronized List<AiBatchPreviewItem> copyItems() {
+            List<AiBatchPreviewItem> copiedItems = new ArrayList<>();
+            for (AiBatchPreviewItem item : items) {
+                if (item != null) {
+                    copiedItems.add(item);
+                }
+            }
+            return copiedItems;
+        }
+
+        private void markCompleted() {
+            this.status = TASK_COMPLETED;
+            this.finishedAtEpochMillis = System.currentTimeMillis();
+        }
+
+        private void markFailed(String error) {
+            this.status = TASK_FAILED;
+            this.error = error;
+            this.finishedAtEpochMillis = System.currentTimeMillis();
+        }
+
+        private String getTaskId() {
+            return taskId;
+        }
+
+        private String getStatus() {
+            return status;
+        }
+
+        private int getTotal() {
+            return total;
+        }
+
+        private int getProcessed() {
+            return processed;
+        }
+
+        private int getValidCount() {
+            return validCount;
+        }
+
+        private int getInvalidCount() {
+            return invalidCount;
+        }
+
+        private int getProgressPercent() {
+            if (total <= 0) {
+                return 100;
+            }
+            return Math.min(100, (int) ((processed * 100L) / total));
+        }
+
+        private boolean isCompleted() {
+            return TASK_COMPLETED.equals(status) || TASK_FAILED.equals(status);
+        }
+
+        private String getError() {
+            return error;
+        }
+
+        private long getStartedAtEpochMillis() {
+            return startedAtEpochMillis;
+        }
+
+        private Long getFinishedAtEpochMillis() {
+            return finishedAtEpochMillis;
+        }
     }
 
     private static final class BatchSubmitTaskState {
