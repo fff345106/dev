@@ -44,12 +44,21 @@ public class DigitalCollectibleService {
             throw new IllegalArgumentException("纹样图片不能为空");
         }
 
+        CollectibleEntryMode entryMode = request.getEntryMode();
+        if (entryMode == null) {
+            entryMode = CollectibleEntryMode.LIBRARY;
+        }
+
         DigitalCollectible collectible = new DigitalCollectible();
-        collectible.setEntryMode(CollectibleEntryMode.LIBRARY.name());
+        collectible.setEntryMode(entryMode.name());
         collectible.setPatternImageUrl(patternImageUrl);
         collectible.setCreatedBy(createdBy);
 
-        validateLibraryMode(request, patternImageUrl, collectible);
+        if (entryMode == CollectibleEntryMode.UPLOAD) {
+            validateUploadMode(request, patternImageUrl, collectible);
+        } else {
+            validateLibraryMode(request, patternImageUrl, collectible);
+        }
 
         return digitalCollectibleRepository.save(collectible);
     }
@@ -72,6 +81,23 @@ public class DigitalCollectibleService {
         DigitalCollectible collectible = findMyById(id, userId);
         collectible.setIsVisible(Boolean.TRUE.equals(visible));
         return digitalCollectibleRepository.save(collectible);
+    }
+
+    private void validateUploadMode(
+            DigitalCollectibleCreateRequest request,
+            String patternImageUrl,
+            DigitalCollectible collectible) {
+        ImageSourceType sourceType = imageService.resolveImageSourceType(
+                request.getPatternImageSourceType(), patternImageUrl);
+        collectible.setPatternImageSourceType(sourceType.name());
+
+        if (isBlank(safeTrim(request.getStoryText()))) {
+            throw new IllegalArgumentException("UPLOAD模式下藏品故事文本不能为空");
+        }
+
+        collectible.setDescription(safeTrim(request.getDescription()));
+        collectible.setStoryText(safeTrim(request.getStoryText()));
+        collectible.setStoryFileUrl(safeTrim(request.getStoryFileUrl()));
     }
 
     private void validateLibraryMode(
