@@ -4,7 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriUtils;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.WriterException;
@@ -33,11 +34,14 @@ import com.example.hello.repository.PatternRepository;
 
 @Service
 public class PatternService {
+    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
+
     private final PatternRepository patternRepository;
     private final PatternPendingRepository patternPendingRepository;
     private final ImageService imageService;
     private final PatternCodeService patternCodeService;
     private final DwtSvdWatermarkService dwtSvdWatermarkService;
+    private final RedisCacheService redisCacheService;
     private final String publicBaseUrl;
 
     @Autowired
@@ -46,8 +50,9 @@ public class PatternService {
             PatternPendingRepository patternPendingRepository,
             ImageService imageService,
             PatternCodeService patternCodeService,
+            RedisCacheService redisCacheService,
             @Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl) {
-        this(patternRepository, patternPendingRepository, imageService, patternCodeService, publicBaseUrl, new DwtSvdWatermarkService());
+        this(patternRepository, patternPendingRepository, imageService, patternCodeService, redisCacheService, publicBaseUrl, new DwtSvdWatermarkService());
     }
 
     PatternService(
@@ -55,6 +60,7 @@ public class PatternService {
             PatternPendingRepository patternPendingRepository,
             ImageService imageService,
             PatternCodeService patternCodeService,
+            RedisCacheService redisCacheService,
             String publicBaseUrl,
             DwtSvdWatermarkService dwtSvdWatermarkService) {
         this.patternRepository = patternRepository;
@@ -63,6 +69,7 @@ public class PatternService {
         this.patternCodeService = patternCodeService;
         this.publicBaseUrl = publicBaseUrl;
         this.dwtSvdWatermarkService = dwtSvdWatermarkService;
+        this.redisCacheService = redisCacheService;
     }
 
     public Pattern create(PatternRequest request) {
@@ -98,11 +105,18 @@ public class PatternService {
             }
         }
 
-        return patternRepository.save(pattern);
+        Pattern saved = patternRepository.save(pattern);
+        evictPatternCaches();
+        return saved;
     }
 
     public List<Pattern> findAll() {
-        return patternRepository.findAll();
+        String key = "patterns::all";
+        List<Pattern> cached = redisCacheService.get(key, new TypeReference<List<Pattern>>() {});
+        if (cached != null) return cached;
+        List<Pattern> result = patternRepository.findAll();
+        redisCacheService.put(key, result, CACHE_TTL);
+        return result;
     }
 
     public Page<Pattern> findAll(Pageable pageable) {
@@ -110,13 +124,23 @@ public class PatternService {
     }
 
     public Pattern findById(Long id) {
-        return patternRepository.findById(id)
+        String key = "patterns::id:" + id;
+        Pattern cached = redisCacheService.get(key, Pattern.class);
+        if (cached != null) return cached;
+        Pattern result = patternRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("纹样不存在"));
+        redisCacheService.put(key, result, CACHE_TTL);
+        return result;
     }
 
     public Pattern findByCode(String code) {
-        return patternRepository.findByPatternCode(code)
+        String key = "patterns::code:" + code;
+        Pattern cached = redisCacheService.get(key, Pattern.class);
+        if (cached != null) return cached;
+        Pattern result = patternRepository.findByPatternCode(code)
                 .orElseThrow(() -> new RuntimeException("纹样不存在"));
+        redisCacheService.put(key, result, CACHE_TTL);
+        return result;
     }
 
     public byte[] generatePatternQrCode(Long id) {
@@ -172,64 +196,60 @@ public class PatternService {
         pattern.setImageSourceType(imageService.normalizeImageSourceTypeValue(request.getImageSourceType(), request.getImageUrl()));
         pattern.setStoryText(request.getStoryText());
         pattern.setStoryImageUrl(request.getStoryImageUrl());
-        // 更新时不改变日期代码、序列号和纹样编码
-        return patternRepository.save(pattern);
+        Pattern saved = patternRepository.save(pattern);
+        evictPatternCaches();
+        return saved;
     }
 
     @Transactional
     public void delete(Long id, com.example.hello.enums.UserRole role) {
         Pattern pattern = findById(id);
 
-        // 权限检查
-        // 正式纹样表只有管理员和超级管理员可以删除
-        // 普通用户无权删除正式纹样
         if (role == com.example.hello.enums.UserRole.USER || role == com.example.hello.enums.UserRole.GUEST) {
             throw new RuntimeException("无权删除正式纹样");
         }
 
-        // 联动删除临时库中同编码记录（不存在则删除0条，不影响流程）
         if (pattern.getPatternCode() != null && !pattern.getPatternCode().isEmpty()) {
             patternPendingRepository.deleteByPatternCode(pattern.getPatternCode());
         }
 
-        // 删除关联的图片文件
         if (pattern.getImageUrl() != null && !pattern.getImageUrl().isEmpty()) {
             try {
                 imageService.delete(pattern.getImageUrl());
             } catch (IOException e) {
-                // 图片删除失败不影响纹样删除
+                // ignore
             }
         }
 
         patternRepository.deleteById(id);
-    }
-    
-    // 兼容旧接口，供内部调用（如果有）
-    public void delete(Long id) {
-        delete(id, com.example.hello.enums.UserRole.SUPER_ADMIN); // 默认最高权限
+        evictPatternCaches();
     }
 
-    /**
-     * 批量删除纹样
-     */
+    public void delete(Long id) {
+        delete(id, com.example.hello.enums.UserRole.SUPER_ADMIN);
+    }
+
     public void batchDelete(List<Long> ids, com.example.hello.enums.UserRole role) {
         for (Long id : ids) {
             try {
                 delete(id, role);
             } catch (Exception e) {
-                // 忽略单个删除失败，继续删除下一个
                 System.err.println("Failed to delete pattern " + id + ": " + e.getMessage());
             }
         }
     }
-    
-    // 兼容旧接口
+
     public void batchDelete(List<Long> ids) {
         batchDelete(ids, com.example.hello.enums.UserRole.SUPER_ADMIN);
     }
 
     public List<Pattern> findByMainCategory(String mainCategory) {
-        return patternRepository.findByMainCategory(mainCategory.toUpperCase());
+        String key = "patterns::cat:" + mainCategory.toUpperCase();
+        List<Pattern> cached = redisCacheService.get(key, new TypeReference<List<Pattern>>() {});
+        if (cached != null) return cached;
+        List<Pattern> result = patternRepository.findByMainCategory(mainCategory.toUpperCase());
+        redisCacheService.put(key, result, CACHE_TTL);
+        return result;
     }
 
     public Page<Pattern> findByMainCategory(String mainCategory, Pageable pageable) {
@@ -237,7 +257,12 @@ public class PatternService {
     }
 
     public List<Pattern> findByStyle(String style) {
-        return patternRepository.findByStyle(style.toUpperCase());
+        String key = "patterns::style:" + style.toUpperCase();
+        List<Pattern> cached = redisCacheService.get(key, new TypeReference<List<Pattern>>() {});
+        if (cached != null) return cached;
+        List<Pattern> result = patternRepository.findByStyle(style.toUpperCase());
+        redisCacheService.put(key, result, CACHE_TTL);
+        return result;
     }
 
     public Page<Pattern> findByStyle(String style, Pageable pageable) {
@@ -245,7 +270,12 @@ public class PatternService {
     }
 
     public List<Pattern> findByRegion(String region) {
-        return patternRepository.findByRegion(region.toUpperCase());
+        String key = "patterns::region:" + region.toUpperCase();
+        List<Pattern> cached = redisCacheService.get(key, new TypeReference<List<Pattern>>() {});
+        if (cached != null) return cached;
+        List<Pattern> result = patternRepository.findByRegion(region.toUpperCase());
+        redisCacheService.put(key, result, CACHE_TTL);
+        return result;
     }
 
     public Page<Pattern> findByRegion(String region, Pageable pageable) {
@@ -253,17 +283,18 @@ public class PatternService {
     }
 
     public List<Pattern> findByPeriod(String period) {
-        return patternRepository.findByPeriod(period.toUpperCase());
+        String key = "patterns::period:" + period.toUpperCase();
+        List<Pattern> cached = redisCacheService.get(key, new TypeReference<List<Pattern>>() {});
+        if (cached != null) return cached;
+        List<Pattern> result = patternRepository.findByPeriod(period.toUpperCase());
+        redisCacheService.put(key, result, CACHE_TTL);
+        return result;
     }
 
     public Page<Pattern> findByPeriod(String period, Pageable pageable) {
         return patternRepository.findByPeriod(period.toUpperCase(), pageable);
     }
 
-    /**
-     * 下载纹样图片（写入DWT-SVD鲁棒水印）
-     * @return Pair<InputStream, Filename>
-     */
     public java.util.Map<String, Object> download(Long id) throws IOException {
         Pattern pattern = findById(id);
         if (pattern.getImageUrl() == null || pattern.getImageUrl().isEmpty()) {
@@ -280,15 +311,12 @@ public class PatternService {
         }
 
         return java.util.Map.of(
-            "stream", new ByteArrayInputStream(watermarked),
-            "filename", filename,
-            "contentType", resolveContentTypeByExtension(outputExtension)
+                "stream", new ByteArrayInputStream(watermarked),
+                "filename", filename,
+                "contentType", resolveContentTypeByExtension(outputExtension)
         );
     }
 
-    /**
-     * 批量下载纹样图片（写入DWT-SVD鲁棒水印）
-     */
     public void batchDownload(List<Long> ids, java.io.OutputStream outputStream) throws IOException {
         List<Pattern> patterns = patternRepository.findAllById(ids);
 
@@ -389,4 +417,8 @@ public class PatternService {
         return null;
     }
 
+    private void evictPatternCaches() {
+        redisCacheService.evictPattern("patterns::*");
+        redisCacheService.evictPattern("stats::*");
+    }
 }

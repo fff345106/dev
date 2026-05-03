@@ -1,5 +1,6 @@
 package com.example.hello.service;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -12,16 +13,25 @@ import com.example.hello.repository.PatternRepository;
 
 @Service
 public class StatsService {
+    private static final String CACHE_KEY = "stats::overview";
+    private static final Duration CACHE_TTL = Duration.ofMinutes(2);
+
     private final PatternPendingRepository pendingRepository;
     private final PatternRepository patternRepository;
+    private final RedisCacheService redisCacheService;
 
-    public StatsService(PatternPendingRepository pendingRepository, PatternRepository patternRepository) {
+    public StatsService(PatternPendingRepository pendingRepository, PatternRepository patternRepository, RedisCacheService redisCacheService) {
         this.pendingRepository = pendingRepository;
         this.patternRepository = patternRepository;
+        this.redisCacheService = redisCacheService;
     }
 
     public StatsResponse getStats() {
-        // 今日0点到明日0点
+        StatsResponse cached = redisCacheService.get(CACHE_KEY, StatsResponse.class);
+        if (cached != null) {
+            return cached;
+        }
+
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
         LocalDateTime todayEnd = todayStart.plusDays(1);
 
@@ -30,6 +40,8 @@ public class StatsService {
         long approvedCount = pendingRepository.countByStatus(AuditStatus.APPROVED);
         long totalCount = patternRepository.count();
 
-        return new StatsResponse(todaySubmitCount, pendingCount, approvedCount, totalCount);
+        StatsResponse result = new StatsResponse(todaySubmitCount, pendingCount, approvedCount, totalCount);
+        redisCacheService.put(CACHE_KEY, result, CACHE_TTL);
+        return result;
     }
 }

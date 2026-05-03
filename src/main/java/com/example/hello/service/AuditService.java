@@ -31,6 +31,7 @@ public class AuditService {
     private final PatternHashService patternHashService;
     private final BlockchainAnchorService blockchainAnchorService;
     private final PatternCodeService patternCodeService;
+    private final RedisCacheService redisCacheService;
 
     public AuditService(PatternPendingRepository pendingRepository,
                         PatternRepository patternRepository,
@@ -38,7 +39,8 @@ public class AuditService {
                         ImageService imageService,
                         PatternHashService patternHashService,
                         BlockchainAnchorService blockchainAnchorService,
-                        PatternCodeService patternCodeService) {
+                        PatternCodeService patternCodeService,
+                        RedisCacheService redisCacheService) {
         this.pendingRepository = pendingRepository;
         this.patternRepository = patternRepository;
         this.userRepository = userRepository;
@@ -46,6 +48,7 @@ public class AuditService {
         this.patternHashService = patternHashService;
         this.blockchainAnchorService = blockchainAnchorService;
         this.patternCodeService = patternCodeService;
+        this.redisCacheService = redisCacheService;
     }
 
     /**
@@ -104,6 +107,7 @@ public class AuditService {
             // 审核通过，移入正式表
             pending.setStatus(AuditStatus.APPROVED);
             pendingRepository.save(pending);
+            evictAuditCaches();
             return moveToPattern(pending);
         } else {
             // 审核拒绝
@@ -112,7 +116,7 @@ public class AuditService {
             }
             pending.setStatus(AuditStatus.REJECTED);
             pending.setRejectReason(request.getRejectReason());
-            
+
             // 仅删除临时上传来源图片
             if (pending.getImageUrl() != null && !pending.getImageUrl().isEmpty()
                     && imageService.shouldDeleteTempImage(pending.getImageUrl(), pending.getImageSourceType())) {
@@ -123,7 +127,8 @@ public class AuditService {
                     // 忽略删除失败
                 }
             }
-            
+
+            evictAuditCaches();
             return pendingRepository.save(pending);
         }
     }
@@ -385,4 +390,8 @@ public class AuditService {
         return patternRepository.save(pattern);
     }
 
+    private void evictAuditCaches() {
+        redisCacheService.evictPattern("patterns::*");
+        redisCacheService.evictPattern("stats::*");
+    }
 }

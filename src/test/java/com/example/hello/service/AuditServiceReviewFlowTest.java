@@ -52,6 +52,9 @@ class AuditServiceReviewFlowTest {
     @org.mockito.Mock
     private PatternCodeService patternCodeService;
 
+    @org.mockito.Mock
+    private RedisCacheService redisCacheService;
+
     private AuditService auditService;
 
     @BeforeEach
@@ -63,7 +66,8 @@ class AuditServiceReviewFlowTest {
                 imageService,
                 patternHashService,
                 blockchainAnchorService,
-                patternCodeService);
+                patternCodeService,
+                redisCacheService);
 
         when(pendingRepository.save(any(PatternPending.class))).thenAnswer(invocation -> invocation.getArgument(0));
         org.mockito.Mockito.lenient().when(imageService.resolveImageSourceType(any(), any())).thenAnswer(invocation -> {

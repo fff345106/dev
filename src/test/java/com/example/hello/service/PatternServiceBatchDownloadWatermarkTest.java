@@ -42,11 +42,14 @@ class PatternServiceBatchDownloadWatermarkTest {
     @Mock
     private PatternCodeService patternCodeService;
 
+    @Mock
+    private RedisCacheService redisCacheService;
+
     private PatternService patternService;
 
     @BeforeEach
     void setUp() {
-        patternService = new PatternService(patternRepository, patternPendingRepository, imageService, patternCodeService, "https://example.com");
+        patternService = new PatternService(patternRepository, patternPendingRepository, imageService, patternCodeService, redisCacheService, "https://example.com");
     }
 
     @Test

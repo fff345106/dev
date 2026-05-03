@@ -6,6 +6,8 @@ public class StatsResponse {
     private long approvedCount;      // 已通过数
     private long totalCount;         // 总录入数
 
+    public StatsResponse() {}
+
     public StatsResponse(long todaySubmitCount, long pendingCount, long approvedCount, long totalCount) {
         this.todaySubmitCount = todaySubmitCount;
         this.pendingCount = pendingCount;

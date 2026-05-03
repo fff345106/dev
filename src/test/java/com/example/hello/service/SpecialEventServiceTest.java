@@ -26,11 +26,14 @@ class SpecialEventServiceTest {
     @Mock
     private SpecialEventRepository specialEventRepository;
 
+    @Mock
+    private RedisCacheService redisCacheService;
+
     private SpecialEventService specialEventService;
 
     @BeforeEach
     void setUp() {
-        specialEventService = new SpecialEventService(specialEventRepository);
+        specialEventService = new SpecialEventService(specialEventRepository, redisCacheService);
     }
 
     @Test
