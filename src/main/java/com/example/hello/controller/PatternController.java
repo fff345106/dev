@@ -170,6 +170,40 @@ public class PatternController {
                 .body(stream);
     }
 
+    /**
+     * 嵌入 DWT-SVD 鲁棒水印
+     * @param file 原始图片文件
+     * @param watermarkText 水印文本（可选，默认 "hidden-watermark"）
+     * @return 嵌入水印后的 PNG 图片
+     */
+    @PostMapping(value = "/watermark/embed", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<org.springframework.core.io.InputStreamResource> embedWatermark(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "text", defaultValue = "hidden-watermark") String watermarkText) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("请上传需要嵌入水印的图片文件");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        String extension = ".png";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+
+        try (java.io.InputStream inputStream = file.getInputStream()) {
+            com.example.hello.service.DwtSvdWatermarkService watermarkService = new com.example.hello.service.DwtSvdWatermarkService();
+            byte[] watermarked = watermarkService.embed(inputStream, watermarkText, extension);
+
+            String outputFilename = "watermarked_" + (originalFilename != null ? originalFilename : "image.png");
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + outputFilename + "\"")
+                    .contentType(MediaType.IMAGE_PNG)
+                    .body(new org.springframework.core.io.InputStreamResource(new java.io.ByteArrayInputStream(watermarked)));
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("嵌入水印失败: " + e.getMessage(), e);
+        }
+    }
+
     @PostMapping(value = "/watermark/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<java.util.Map<String, Object>> verifyWatermark(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
