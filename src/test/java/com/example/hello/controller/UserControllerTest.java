@@ -2,6 +2,7 @@ package com.example.hello.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -55,7 +56,7 @@ class UserControllerTest {
 
         // Controller strips "Bearer " prefix before calling jwtUtil.extractUserId()
         when(jwtUtil.extractUserId("valid-token")).thenReturn(1L);
-        when(userService.updateAvatar(eq(userId), any(), eq(1L))).thenReturn(user);
+        when(userService.updateAvatar(eq(userId), any(), eq(userId))).thenReturn(user);
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "avatar.jpg", "image/jpeg", "test image content".getBytes());
@@ -66,6 +67,8 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("头像上传成功"))
                 .andExpect(jsonPath("$.avatarUrl").value("https://s3.example.com/avatars/1/avatar.jpg"));
+
+        verify(userService).updateAvatar(eq(userId), any(), eq(userId));
     }
 
     @Test
@@ -89,12 +92,41 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.avatarUrl")
                         .value("https://s3.example.com/avatars/1/avatar.jpg"));
+
+        verify(userService).getAvatarUrl(userId);
     }
 
     @Test
     void getAvatarUrl_NoAvatar_Returns404() throws Exception {
         Long userId = 1L;
         when(userService.getAvatarUrl(userId)).thenReturn(null);
+
+        mockMvc.perform(get("/api/users/{userId}/avatar", userId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("用户暂未设置头像"));
+    }
+
+    @Test
+    void uploadAvatar_PermissionDenied_Returns403() throws Exception {
+        Long userId = 2L;
+        when(jwtUtil.extractUserId("valid-token")).thenReturn(1L);
+        when(userService.updateAvatar(eq(userId), any(), eq(1L)))
+                .thenThrow(new SecurityException("无权修改该用户的头像"));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "avatar.jpg", "image/jpeg", "test content".getBytes());
+
+        mockMvc.perform(multipart("/api/users/{userId}/avatar", userId)
+                        .file(file)
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("无权修改该用户的头像"));
+    }
+
+    @Test
+    void getAvatarUrl_EmptyUrl_Returns404() throws Exception {
+        Long userId = 1L;
+        when(userService.getAvatarUrl(userId)).thenReturn("");
 
         mockMvc.perform(get("/api/users/{userId}/avatar", userId))
                 .andExpect(status().isNotFound())
