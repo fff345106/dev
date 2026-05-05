@@ -162,6 +162,17 @@ public class UserService {
     }
 
     /**
+     * 获取用户头像URL
+     * @param userId 用户ID
+     * @return 头像URL，如果未设置则返回null
+     */
+    public String getAvatarUrl(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        return user.getAvatarUrl();
+    }
+
+    /**
      * 更新用户头像
      * @param userId 目标用户ID
      * @param file 头像文件
