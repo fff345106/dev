@@ -2,6 +2,8 @@ package com.example.hello.controller;
 
 import java.util.Map;
 
+import jakarta.validation.Valid;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.hello.dto.UpdateUsernameRequest;
+import com.example.hello.entity.User;
 import com.example.hello.enums.UserRole;
 import com.example.hello.service.InvitationCodeService;
 import com.example.hello.service.UserService;
@@ -123,6 +127,29 @@ public class UserController {
             Long operatorUserId = getUserIdFromToken(token);
             String code = invitationCodeService.generateCode(operatorUserId);
             return ResponseEntity.ok(Map.of("message", "邀请码生成成功", "code", code));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 修改用户名
+     * 用户可以修改自己的用户名，超级管理员可以修改任意用户的用户名
+     */
+    @PutMapping("/{userId:\\d+}/username")
+    public ResponseEntity<?> updateUsername(
+            @PathVariable Long userId,
+            @RequestBody @Valid UpdateUsernameRequest request,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            if (token == null || token.isEmpty()) {
+                return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
+            }
+            Long operatorUserId = getUserIdFromToken(token);
+            User updatedUser = userService.updateUsername(userId, request.getUsername(), operatorUserId);
+            return ResponseEntity.ok(updatedUser);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
