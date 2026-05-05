@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.example.hello.dto.UpdateUsernameRequest;
 import com.example.hello.entity.User;
@@ -150,6 +152,33 @@ public class UserController {
             return ResponseEntity.ok(updatedUser);
         } catch (SecurityException e) {
             return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 上传/修改用户头像
+     */
+    @PostMapping("/{userId:\\d+}/avatar")
+    public ResponseEntity<?> uploadAvatar(
+            @PathVariable Long userId,
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            if (token == null || token.isEmpty()) {
+                return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
+            }
+            Long operatorUserId = getUserIdFromToken(token);
+            User updatedUser = userService.updateAvatar(userId, file, operatorUserId);
+            return ResponseEntity.ok(Map.of(
+                    "message", "头像上传成功",
+                    "avatarUrl", updatedUser.getAvatarUrl()
+            ));
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
