@@ -184,6 +184,22 @@ public class UserController {
         }
     }
 
+    /**
+     * 获取用户头像URL
+     */
+    @GetMapping("/{userId:\\d+}/avatar")
+    public ResponseEntity<?> getAvatarUrl(@PathVariable Long userId) {
+        try {
+            String avatarUrl = userService.getAvatarUrl(userId);
+            if (avatarUrl == null || avatarUrl.isEmpty()) {
+                return ResponseEntity.status(404).body(Map.of("message", "用户暂未设置头像"));
+            }
+            return ResponseEntity.ok(Map.of("avatarUrl", avatarUrl));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     private Long getUserIdFromToken(String token) {
         String jwt = token.replace("Bearer ", "");
         return jwtUtil.extractUserId(jwt);
