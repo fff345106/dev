@@ -38,6 +38,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class ImageService {
 
     private static final String TEMP_FOLDER = "temp/";
+    private static final String AVATAR_FOLDER = "avatars/";
+    private static final long MAX_AVATAR_BYTES = 2L * 1024 * 1024; // 2MB
     private static final long MAX_EXTERNAL_IMAGE_BYTES = 15L * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTERNAL_CONTENT_TYPES = Set.of(
             "image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp");
@@ -88,6 +90,54 @@ public class ImageService {
         }
 
         return uploadToTemp(file, contentType);
+    }
+
+    /**
+     * 上传用户头像到S3
+     * @param file 图片文件
+     * @param userId 用户ID
+     * @return 头像URL
+     */
+    public String uploadAvatar(MultipartFile file, Long userId) throws IOException {
+        // 1. 验证文件不为空
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("上传文件不能为空");
+        }
+
+        // 2. 验证文件类型
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("仅支持图片文件");
+        }
+
+        // 3. 验证文件大小（2MB）
+        if (file.getSize() > MAX_AVATAR_BYTES) {
+            throw new IllegalArgumentException("文件大小超过限制（最大2MB）");
+        }
+
+        // 4. 生成S3路径：avatars/{userId}/avatar.{ext}
+        String extension = resolveUploadExtension(file.getOriginalFilename(), contentType);
+        String key = AVATAR_FOLDER + userId + "/avatar" + extension;
+
+        // 5. 上传到S3
+        File tempFile = File.createTempFile("avatar_", extension);
+        file.transferTo(tempFile);
+
+        try {
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(contentType)
+                    .build();
+            s3Client.putObject(request, RequestBody.fromFile(tempFile));
+            return baseUrl + "/" + key;
+        } catch (S3Exception e) {
+            throw new IOException("头像上传失败: " + e.getMessage(), e);
+        } finally {
+            if (tempFile.exists()) {
+                tempFile.delete();
+            }
+        }
     }
 
     /**
