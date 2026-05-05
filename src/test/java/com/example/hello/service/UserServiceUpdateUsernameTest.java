@@ -47,17 +47,19 @@ class UserServiceUpdateUsernameTest {
 
     @Test
     void updateUsername_Success() {
-        // Arrange
+        // Arrange - admin modifies another user
         String newUsername = "newuser123";
+        when(userRepository.findById(2L)).thenReturn(Optional.of(adminUser));
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(userRepository.existsByUsername(newUsername)).thenReturn(false);
         when(userRepository.save(any(User.class))).thenReturn(testUser);
 
         // Act
-        User result = userService.updateUsername(1L, newUsername, 1L);
+        User result = userService.updateUsername(1L, newUsername, 2L);
 
         // Assert
         assertNotNull(result);
+        assertEquals(newUsername, testUser.getUsername());
         verify(userRepository).save(testUser);
         verify(redisCacheService).evict("users::id:1");
     }
@@ -154,5 +156,28 @@ class UserServiceUpdateUsernameTest {
         assertThrows(RuntimeException.class, () -> {
             userService.updateUsername(1L, duplicateUsername, 1L);
         });
+    }
+
+    @Test
+    void updateUsername_NullUsername() {
+        // Arrange
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+
+        // Act & Assert
+        assertThrows(RuntimeException.class, () -> {
+            userService.updateUsername(1L, null, 1L);
+        });
+    }
+
+    @Test
+    void updateUsername_OperatorNotFound() {
+        // Arrange
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            userService.updateUsername(1L, "newname", 99L);
+        });
+        assertEquals("操作者不存在", exception.getMessage());
     }
 }
