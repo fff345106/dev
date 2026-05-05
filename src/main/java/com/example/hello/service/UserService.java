@@ -1,11 +1,13 @@
 package com.example.hello.service;
 
+import java.io.IOException;
 import java.time.Duration;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.example.hello.entity.User;
 import com.example.hello.enums.UserRole;
@@ -19,11 +21,14 @@ public class UserService {
     private final UserRepository userRepository;
     private final PatternDraftRepository draftRepository;
     private final RedisCacheService redisCacheService;
+    private final ImageService imageService;
 
-    public UserService(UserRepository userRepository, PatternDraftRepository draftRepository, RedisCacheService redisCacheService) {
+    public UserService(UserRepository userRepository, PatternDraftRepository draftRepository,
+                       RedisCacheService redisCacheService, ImageService imageService) {
         this.userRepository = userRepository;
         this.draftRepository = draftRepository;
         this.redisCacheService = redisCacheService;
+        this.imageService = imageService;
     }
 
     @Transactional
@@ -154,5 +159,49 @@ public class UserService {
         redisCacheService.evict("users::id:" + targetUserId);
 
         return saved;
+    }
+
+    /**
+     * 更新用户头像
+     * @param userId 目标用户ID
+     * @param file 头像文件
+     * @param operatorUserId 操作者用户ID
+     * @return 更新后的用户对象
+     */
+    @Transactional
+    public User updateAvatar(Long userId, MultipartFile file, Long operatorUserId) {
+        // 1. 验证目标用户存在
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        // 2. 验证操作权限
+        if (!operatorUserId.equals(userId)) {
+            User operator = userRepository.findById(operatorUserId)
+                    .orElseThrow(() -> new RuntimeException("操作者不存在"));
+            if (operator.getRole() != UserRole.SUPER_ADMIN) {
+                throw new SecurityException("无权修改该用户的头像");
+            }
+        }
+
+        try {
+            // 3. 删除旧头像
+            if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
+                imageService.deleteAvatar(userId);
+            }
+
+            // 4. 上传新头像
+            String avatarUrl = imageService.uploadAvatar(file, userId);
+
+            // 5. 更新用户记录
+            user.setAvatarUrl(avatarUrl);
+            User saved = userRepository.save(user);
+
+            // 6. 清除缓存
+            redisCacheService.evict("users::id:" + userId);
+
+            return saved;
+        } catch (IOException e) {
+            throw new RuntimeException("头像上传失败: " + e.getMessage(), e);
+        }
     }
 }
