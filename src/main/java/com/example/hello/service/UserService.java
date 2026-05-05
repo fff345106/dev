@@ -113,4 +113,45 @@ public class UserService {
         redisCacheService.evict("users::id:" + targetUserId);
         return saved;
     }
+
+    @Transactional
+    public User updateUsername(Long targetUserId, String newUsername, Long operatorUserId) {
+        // 1. 验证权限
+        User operator = userRepository.findById(operatorUserId)
+                .orElseThrow(() -> new RuntimeException("操作者不存在"));
+
+        boolean isSelf = targetUserId.equals(operatorUserId);
+        boolean isSuperAdmin = operator.getRole() == UserRole.SUPER_ADMIN;
+
+        if (!isSelf && !isSuperAdmin) {
+            throw new SecurityException("无权限修改该用户名");
+        }
+
+        // 2. 验证用户名格式
+        if (newUsername == null || newUsername.trim().isEmpty()) {
+            throw new RuntimeException("用户名不能为空");
+        }
+        if (newUsername.length() < 1 || newUsername.length() > 30) {
+            throw new RuntimeException("用户名长度必须在1-30个字符之间");
+        }
+        if (!newUsername.matches("^[a-zA-Z0-9_\\u4e00-\\u9fa5]+$")) {
+            throw new RuntimeException("用户名只能包含字母、数字、下划线和中文");
+        }
+
+        // 3. 检查用户名是否已被占用
+        if (userRepository.existsByUsername(newUsername)) {
+            throw new RuntimeException("用户名已被占用");
+        }
+
+        // 4. 更新用户名
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        targetUser.setUsername(newUsername);
+        User saved = userRepository.save(targetUser);
+
+        // 5. 清除缓存
+        redisCacheService.evict("users::id:" + targetUserId);
+
+        return saved;
+    }
 }
