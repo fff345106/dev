@@ -171,6 +171,30 @@ class UserServiceTest {
     }
 
     @Test
+    void updateAvatar_DeleteOldAvatarFails_ContinuesWithUpload() throws IOException {
+        // Given - 用户已有头像，删除旧头像时抛出 RuntimeException
+        // updateAvatar 的 try-catch 只捕获 IOException，RuntimeException 会传播到调用方
+        testUser.setAvatarUrl("https://s3.example.com/avatars/1/avatar.jpg");
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "new-avatar.jpg", "image/jpeg", "new image content".getBytes()
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        doThrow(new RuntimeException("S3删除失败")).when(imageService).deleteAvatar(1L);
+
+        // When & Then - RuntimeException 未被 catch(IOException) 捕获，直接传播
+        assertThrows(RuntimeException.class, () -> {
+            userService.updateAvatar(1L, file, 1L);
+        });
+
+        // 验证删除旧头像被调用，但后续的上传和保存不会执行
+        verify(imageService).deleteAvatar(1L);
+        verify(imageService, never()).uploadAvatar(any(), anyLong());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
     void updateAvatar_UploadFails_ThrowsException() throws IOException {
         // Arrange
         MockMultipartFile file = new MockMultipartFile(
