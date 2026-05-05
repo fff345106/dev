@@ -131,21 +131,22 @@ public class UserService {
         if (newUsername == null || newUsername.trim().isEmpty()) {
             throw new RuntimeException("用户名不能为空");
         }
-        if (newUsername.length() < 1 || newUsername.length() > 30) {
+        if (newUsername.length() > 30) {
             throw new RuntimeException("用户名长度必须在1-30个字符之间");
         }
         if (!newUsername.matches("^[a-zA-Z0-9_\\u4e00-\\u9fa5]+$")) {
             throw new RuntimeException("用户名只能包含字母、数字、下划线和中文");
         }
 
-        // 3. 检查用户名是否已被占用
-        if (userRepository.existsByUsername(newUsername)) {
-            throw new RuntimeException("用户名已被占用");
-        }
-
-        // 4. 更新用户名
+        // 3. 查询目标用户
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        // 4. 检查用户名是否已被占用（排除自身）
+        if (!targetUser.getUsername().equals(newUsername)
+                && userRepository.existsByUsername(newUsername)) {
+            throw new RuntimeException("用户名已被占用");
+        }
         targetUser.setUsername(newUsername);
         User saved = userRepository.save(targetUser);
 
