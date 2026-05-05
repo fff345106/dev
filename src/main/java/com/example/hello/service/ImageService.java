@@ -374,6 +374,33 @@ public class ImageService {
     }
 
     /**
+     * 删除用户头像
+     * @param userId 用户ID
+     */
+    public void deleteAvatar(Long userId) {
+        try {
+            // 列出并删除该用户的所有头像文件
+            String prefix = AVATAR_FOLDER + userId + "/";
+            // 尝试删除常见扩展名的头像文件
+            String[] extensions = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"};
+            for (String ext : extensions) {
+                String key = prefix + "avatar" + ext;
+                try {
+                    DeleteObjectRequest request = DeleteObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(key)
+                            .build();
+                    s3Client.deleteObject(request);
+                } catch (S3Exception ignored) {
+                    // 文件不存在时忽略
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("删除头像失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 重命名图片文件（兼容旧方法）
      */
     public String renameToPatternCode(String oldUrl, String patternCode) throws IOException {
