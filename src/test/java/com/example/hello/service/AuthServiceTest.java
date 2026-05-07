@@ -26,6 +26,7 @@ import com.example.hello.repository.UserRepository;
 import com.example.hello.util.JwtUtil;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class AuthServiceTest {
 
     @Mock
@@ -154,6 +155,104 @@ class AuthServiceTest {
 
         assertEquals("两次密码不一致", ex.getMessage());
         verifyNoInteractions(userRepository, invitationCodeService, passwordEncoder, appRegistrationCallbackService);
+    }
+
+    @Test
+    void register_shouldSetRegularUserRoleWhenRoleTypeProvided() {
+        RegisterRequest request = buildRegisterRequest();
+        request.setRoleType("REGULAR_USER");
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(invitationCodeService.consumeCode("123456")).thenReturn(InvitationCodeService.CodeConsumeResult.local());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse response = authService.register(request);
+
+        assertNull(response.getToken());
+        assertEquals("注册成功", response.getMessage());
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertEquals(UserRole.REGULAR_USER, userCaptor.getValue().getRole());
+    }
+
+    @Test
+    void register_shouldSetEnterpriseUserRoleWhenRoleTypeProvided() {
+        RegisterRequest request = buildRegisterRequest();
+        request.setRoleType("ENTERPRISE_USER");
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(invitationCodeService.consumeCode("123456")).thenReturn(InvitationCodeService.CodeConsumeResult.local());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse response = authService.register(request);
+
+        assertNull(response.getToken());
+        assertEquals("注册成功", response.getMessage());
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertEquals(UserRole.ENTERPRISE_USER, userCaptor.getValue().getRole());
+    }
+
+    @Test
+    void register_shouldSetMasterArtisanRoleWhenRoleTypeProvided() {
+        RegisterRequest request = buildRegisterRequest();
+        request.setRoleType("MASTER_ARTISAN");
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(invitationCodeService.consumeCode("123456")).thenReturn(InvitationCodeService.CodeConsumeResult.local());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse response = authService.register(request);
+
+        assertNull(response.getToken());
+        assertEquals("注册成功", response.getMessage());
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertEquals(UserRole.MASTER_ARTISAN, userCaptor.getValue().getRole());
+    }
+
+    @Test
+    void register_shouldRejectInvalidRoleType() {
+        RegisterRequest request = buildRegisterRequest();
+        request.setRoleType("INVALID_ROLE");
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(invitationCodeService.consumeCode("123456")).thenReturn(InvitationCodeService.CodeConsumeResult.local());
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(request));
+
+        assertEquals("无效的角色类型", ex.getMessage());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void register_shouldRejectAdminRoleType() {
+        RegisterRequest request = buildRegisterRequest();
+        request.setRoleType("ADMIN");
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(invitationCodeService.consumeCode("123456")).thenReturn(InvitationCodeService.CodeConsumeResult.local());
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.register(request));
+
+        assertEquals("不支持的角色类型", ex.getMessage());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void register_shouldDefaultToUserRoleWhenNoRoleType() {
+        RegisterRequest request = buildRegisterRequest();
+        // roleType 不设置，保持 null
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(invitationCodeService.consumeCode("123456")).thenReturn(InvitationCodeService.CodeConsumeResult.local());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse response = authService.register(request);
+
+        assertNull(response.getToken());
+        assertEquals("注册成功", response.getMessage());
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertEquals(UserRole.USER, userCaptor.getValue().getRole());
     }
 
     private RegisterRequest buildRegisterRequest() {

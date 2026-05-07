@@ -44,8 +44,28 @@ public class AuthService {
         InvitationCodeService.CodeConsumeResult consumeResult = invitationCodeService.consumeCode(request.getInvitationCode());
 
         User user = new User(request.getUsername(), passwordEncoder.encode(request.getPassword()));
-        // 默认为录入员，除非第一个注册的可能是管理员（根据业务需求调整）
-        user.setRole(UserRole.USER);
+
+        // 根据 roleType 设置角色
+        String roleType = request.getRoleType();
+        if (roleType != null && !roleType.isBlank()) {
+            try {
+                UserRole selectedRole = UserRole.valueOf(roleType);
+                // 只允许选择普通用户、企商用户、技艺大师
+                if (selectedRole == UserRole.REGULAR_USER
+                        || selectedRole == UserRole.ENTERPRISE_USER
+                        || selectedRole == UserRole.MASTER_ARTISAN) {
+                    user.setRole(selectedRole);
+                } else {
+                    throw new RuntimeException("不支持的角色类型");
+                }
+            } catch (IllegalArgumentException e) {
+                throw new RuntimeException("无效的角色类型");
+            }
+        } else {
+            // 没有指定角色时，默认为录入员（兼容旧逻辑）
+            user.setRole(UserRole.USER);
+        }
+
         userRepository.save(user);
         if (consumeResult != null && consumeResult.source() == InvitationCodeService.CodeSource.APP) {
             appRegistrationCallbackService.notifyRegisterSuccess(
