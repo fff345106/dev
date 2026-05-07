@@ -20,6 +20,8 @@ public class RegisterRequest {
     @Pattern(regexp = "(?:\\d{6}|\\d{8})", message = "邀请码或剪艺码必须为6位或8位数字")
     private String invitationCode;
 
+    private String roleType;
+
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
     public String getPassword() { return password; }
@@ -28,4 +30,6 @@ public class RegisterRequest {
     public void setConfirmPassword(String confirmPassword) { this.confirmPassword = confirmPassword; }
     public String getInvitationCode() { return invitationCode; }
     public void setInvitationCode(String invitationCode) { this.invitationCode = invitationCode; }
+    public String getRoleType() { return roleType; }
+    public void setRoleType(String roleType) { this.roleType = roleType; }
 }
