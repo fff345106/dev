@@ -175,13 +175,21 @@ public class UserCertification {
 
 **普通用户/企商用户/技艺大师**：
 ```
-输入用户名/密码/邀请码 → 选择角色类型 → 创建用户 → 返回成功
+输入用户名/密码/剪艺码 → 选择角色类型 → 验证剪艺码 → 创建用户 → 返回成功
 ```
 
 **录入员**：
 ```
 输入用户名/密码/纹样系统邀请码 → 验证邀请码 → 创建用户（角色=录入员）→ 返回成功
 ```
+
+**邀请码来源说明**：
+| 角色 | 邀请码类型 | 来源 |
+|------|-----------|------|
+| 普通用户 | 剪艺码 | 剪艺 App |
+| 企商用户 | 剪艺码 | 剪艺 App |
+| 技艺大师 | 剪艺码 | 剪艺 App |
+| 录入员 | 纹样系统邀请码 | 超级管理员生成 |
 
 ### 3.3 实名认证流程
 
@@ -308,13 +316,14 @@ public class UserPermissionService {
     "password": "string",
     "confirmPassword": "string",
     "invitationCode": "string",
-    "roleType": "REGULAR_USER | ENTERPRISE_USER | MASTER_ARTISAN"
+    "roleType": "REGULAR_USER | ENTERPRISE_USER | MASTER_ARTISAN | USER"
 }
 ```
 
 **说明**：
-- `roleType` 为可选字段，默认为 `REGULAR_USER`
-- 录入员注册时不需要 `roleType`，通过邀请码自动设置角色
+- `roleType` 为必填字段，用户选择角色类型
+- 普通用户/企商用户/技艺大师：`invitationCode` 填写剪艺码
+- 录入员：`invitationCode` 填写纹样系统邀请码，`roleType` 固定为 `USER`
 
 ### 5.3 响应码设计
 
