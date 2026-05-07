@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,8 +43,8 @@ public class AppReviewController {
      */
     @PostMapping
     public ResponseEntity<?> submitReview(
-            @Valid @RequestBody AppReviewRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @Valid @RequestBody AppReviewRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         try {
             Long userId = getUserIdFromToken(token);
             AppReview review = appReviewService.submitReview(userId, request.getRating(), request.getComment());
@@ -58,7 +59,7 @@ public class AppReviewController {
      */
     @GetMapping
     public ResponseEntity<Page<AppReview>> getReviews(
-            @PageableDefault(size = 20) Pageable pageable) {
+            @NonNull @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(appReviewService.getReviews(pageable));
     }
 
@@ -75,8 +76,8 @@ public class AppReviewController {
      */
     @GetMapping("/my")
     public ResponseEntity<?> getMyReviews(
-            @RequestHeader("Authorization") String token,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @NonNull @RequestHeader("Authorization") String token,
+            @NonNull @PageableDefault(size = 20) Pageable pageable) {
         try {
             Long userId = getUserIdFromToken(token);
             return ResponseEntity.ok(appReviewService.getMyReviews(userId, pageable));
@@ -90,8 +91,8 @@ public class AppReviewController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteReview(
-            @PathVariable Long id,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestHeader("Authorization") String token) {
         try {
             String jwt = token.replace("Bearer ", "");
             UserRole role = UserRole.valueOf(jwtUtil.extractRole(jwt));

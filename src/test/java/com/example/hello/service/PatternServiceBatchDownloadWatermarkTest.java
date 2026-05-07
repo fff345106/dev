@@ -28,6 +28,7 @@ import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class PatternServiceBatchDownloadWatermarkTest {
 
     @Mock
@@ -115,24 +116,6 @@ class PatternServiceBatchDownloadWatermarkTest {
         return image;
     }
 
-    private BufferedImage buildTransparentImage(int width, int height) {
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        Random random = new Random(20260422L);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int alpha = x < width / 3 ? 0 : 210;
-                if ((x + y) % 31 == 0) {
-                    alpha = 96;
-                }
-                int r = clampChannel((x * 255) / Math.max(width - 1, 1) + random.nextInt(11) - 5);
-                int g = clampChannel((y * 255) / Math.max(height - 1, 1) + random.nextInt(11) - 5);
-                int b = clampChannel(((x + y) * 255) / Math.max(width + height - 2, 1) + random.nextInt(11) - 5);
-                image.setRGB(x, y, (alpha << 24) | (r << 16) | (g << 8) | b);
-            }
-        }
-        return image;
-    }
-
     private int clampChannel(int value) {
         if (value < 0) {
             return 0;
@@ -171,16 +154,6 @@ class PatternServiceBatchDownloadWatermarkTest {
             assertNotNull(entry);
             return entry.getName();
         }
-    }
-
-    private void assertAlphaPreserved(byte[] originalBytes, byte[] watermarkedBytes) throws Exception {
-        BufferedImage original = javax.imageio.ImageIO.read(new ByteArrayInputStream(originalBytes));
-        BufferedImage watermarked = javax.imageio.ImageIO.read(new ByteArrayInputStream(watermarkedBytes));
-        assertNotNull(original);
-        assertNotNull(watermarked);
-        assertEquals(((original.getRGB(12, 12) >> 24) & 0xFF), ((watermarked.getRGB(12, 12) >> 24) & 0xFF));
-        assertEquals(((original.getRGB(original.getWidth() - 12, original.getHeight() - 12) >> 24) & 0xFF),
-                ((watermarked.getRGB(watermarked.getWidth() - 12, watermarked.getHeight() - 12) >> 24) & 0xFF));
     }
 
     private void assertWatermarkApplied(byte[] originalBytes, byte[] watermarkedBytes, String expectedPatternCode) throws Exception {

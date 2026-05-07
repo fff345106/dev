@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.List;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.example.hello.dto.SpecialEventCreateRequest;
@@ -36,7 +37,9 @@ public class SpecialEventService {
                 .stream()
                 .map(SpecialEventListItemResponse::fromEntity)
                 .toList();
-        redisCacheService.put(CACHE_KEY, result, CACHE_TTL);
+        if (result != null && CACHE_TTL != null) {
+            redisCacheService.put(CACHE_KEY, result, CACHE_TTL);
+        }
         return result;
     }
 
@@ -54,7 +57,7 @@ public class SpecialEventService {
     }
 
     @Transactional
-    public void delete(Long id) {
+    public void delete(@NonNull Long id) {
         specialEventRepository.deleteById(id);
         redisCacheService.evict(CACHE_KEY);
     }

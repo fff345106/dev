@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -121,6 +122,7 @@ public class ImageService {
 
         // 5. 上传到S3
         File tempFile = File.createTempFile("avatar_", extension);
+        Objects.requireNonNull(tempFile, "创建临时文件失败");
         file.transferTo(tempFile);
 
         try {
@@ -160,6 +162,7 @@ public class ImageService {
         String originalFilename = file.getOriginalFilename();
         String extension = resolveUploadExtension(originalFilename, contentType);
         File tempInputFile = File.createTempFile("upload_", extension);
+        Objects.requireNonNull(tempInputFile, "创建临时文件失败");
         file.transferTo(tempInputFile);
 
         try {

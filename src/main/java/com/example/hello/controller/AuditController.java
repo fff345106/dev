@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,8 +54,8 @@ public class AuditController {
      */
     @PostMapping("/submit")
     public ResponseEntity<PatternPending> submit(
-            @Valid @RequestBody PatternRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @Valid @RequestBody PatternRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(auditService.submit(request, userId));
     }
@@ -64,7 +65,7 @@ public class AuditController {
      */
     @PostMapping("/ai-batch-preview")
     public ResponseEntity<AiBatchPreviewResponse> aiBatchPreview(
-            @Valid @RequestBody AiBatchPreviewRequest request) {
+            @NonNull @Valid @RequestBody AiBatchPreviewRequest request) {
         return ResponseEntity.ok(aiBatchEntryService.preview(request));
     }
 
@@ -73,7 +74,7 @@ public class AuditController {
      */
     @PostMapping("/ai-batch-preview/start")
     public ResponseEntity<AiBatchTaskStartResponse> aiBatchPreviewStart(
-            @Valid @RequestBody AiBatchPreviewRequest request) {
+            @NonNull @Valid @RequestBody AiBatchPreviewRequest request) {
         return ResponseEntity.ok(aiBatchEntryService.startPreviewTask(request));
     }
 
@@ -82,7 +83,7 @@ public class AuditController {
      */
     @GetMapping("/ai-batch-preview/progress/{taskId}")
     public ResponseEntity<AiBatchPreviewTaskProgressResponse> aiBatchPreviewProgress(
-            @PathVariable String taskId) {
+            @NonNull @PathVariable String taskId) {
         return ResponseEntity.ok(aiBatchEntryService.getPreviewTaskProgress(taskId));
     }
 
@@ -91,8 +92,8 @@ public class AuditController {
      */
     @PostMapping("/ai-batch-confirm")
     public ResponseEntity<AiBatchSubmitResponse> aiBatchConfirm(
-            @Valid @RequestBody AiBatchConfirmRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @Valid @RequestBody AiBatchConfirmRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(aiBatchEntryService.confirm(request, userId));
     }
@@ -102,8 +103,8 @@ public class AuditController {
      */
     @PostMapping("/ai-batch-submit")
     public ResponseEntity<AiBatchSubmitResponse> aiBatchSubmit(
-            @Valid @RequestBody AiBatchSubmitRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @Valid @RequestBody AiBatchSubmitRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(aiBatchEntryService.submit(request, userId));
     }
@@ -113,8 +114,8 @@ public class AuditController {
      */
     @PostMapping("/ai-batch-submit/start")
     public ResponseEntity<AiBatchTaskStartResponse> aiBatchSubmitStart(
-            @Valid @RequestBody AiBatchSubmitRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @Valid @RequestBody AiBatchSubmitRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(aiBatchEntryService.startSubmitTask(request, userId));
     }
@@ -124,8 +125,8 @@ public class AuditController {
      */
     @GetMapping("/ai-batch-submit/progress/{taskId}")
     public ResponseEntity<AiBatchTaskProgressResponse> aiBatchSubmitProgress(
-            @PathVariable String taskId,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable String taskId,
+            @NonNull @RequestHeader("Authorization") String token) {
         getUserIdFromToken(token);
         return ResponseEntity.ok(aiBatchEntryService.getSubmitTaskProgress(taskId));
     }
@@ -135,9 +136,9 @@ public class AuditController {
      */
     @PostMapping("/{id}/review")
     public ResponseEntity<?> audit(
-            @PathVariable Long id,
-            @Valid @RequestBody AuditRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @Valid @RequestBody AuditRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(auditService.audit(id, request, userId));
     }
@@ -147,8 +148,8 @@ public class AuditController {
      */
     @PostMapping("/batch-review")
     public ResponseEntity<?> batchAudit(
-            @Valid @RequestBody BatchAuditRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @Valid @RequestBody BatchAuditRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         auditService.batchAudit(request, userId);
         return ResponseEntity.ok(java.util.Map.of("message", "批量审核成功"));
@@ -159,9 +160,9 @@ public class AuditController {
      */
     @PutMapping("/{id}/resubmit")
     public ResponseEntity<PatternPending> resubmit(
-            @PathVariable Long id,
-            @Valid @RequestBody PatternRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @Valid @RequestBody PatternRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(auditService.resubmit(id, request, userId));
     }
@@ -170,7 +171,7 @@ public class AuditController {
      * 获取待审核列表
      */
     @GetMapping("/pending")
-    public ResponseEntity<Page<PatternPending>> findPending(@PageableDefault(size = 20) Pageable pageable) {
+    public ResponseEntity<Page<PatternPending>> findPending(@NonNull @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(auditService.findPending(pageable));
     }
 
@@ -178,7 +179,7 @@ public class AuditController {
      * 获取所有审核记录
      */
     @GetMapping
-    public ResponseEntity<Page<PatternPending>> findAll(@PageableDefault(size = 20) Pageable pageable) {
+    public ResponseEntity<Page<PatternPending>> findAll(@NonNull @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(auditService.findAll(pageable));
     }
 
@@ -186,7 +187,7 @@ public class AuditController {
      * 按状态查询
      */
     @GetMapping("/status/{status}")
-    public ResponseEntity<Page<PatternPending>> findByStatus(@PathVariable String status, @PageableDefault(size = 20) Pageable pageable) {
+    public ResponseEntity<Page<PatternPending>> findByStatus(@NonNull @PathVariable String status, @NonNull @PageableDefault(size = 20) Pageable pageable) {
         AuditStatus auditStatus = AuditStatus.valueOf(status.toUpperCase());
         return ResponseEntity.ok(auditService.findByStatus(auditStatus, pageable));
     }
@@ -196,7 +197,7 @@ public class AuditController {
      */
     @GetMapping("/my")
     public ResponseEntity<Page<PatternPending>> findMySubmissions(
-            @RequestHeader("Authorization") String token, @PageableDefault(size = 20) Pageable pageable) {
+            @NonNull @RequestHeader("Authorization") String token, @NonNull @PageableDefault(size = 20) Pageable pageable) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(auditService.findBySubmitter(userId, pageable));
     }
@@ -206,7 +207,7 @@ public class AuditController {
      */
     @GetMapping("/my/recent")
     public ResponseEntity<List<PatternPending>> findMyRecentSubmissions(
-            @RequestHeader("Authorization") String token) {
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(auditService.findRecentBySubmitter(userId));
     }
@@ -215,7 +216,7 @@ public class AuditController {
      * 根据ID查询
      */
     @GetMapping("/{id}")
-    public ResponseEntity<PatternPending> findById(@PathVariable Long id) {
+    public ResponseEntity<PatternPending> findById(@NonNull @PathVariable Long id) {
         return ResponseEntity.ok(auditService.findById(id));
     }
 
@@ -224,8 +225,8 @@ public class AuditController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
-            @PathVariable Long id,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         auditService.delete(id, userId);
         return ResponseEntity.ok().build();
@@ -236,8 +237,8 @@ public class AuditController {
      */
     @PostMapping("/batch-delete")
     public ResponseEntity<Void> batchDelete(
-            @RequestBody java.util.List<Long> ids,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @RequestBody java.util.List<Long> ids,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         auditService.batchDelete(ids, userId);
         return ResponseEntity.ok().build();

@@ -25,6 +25,7 @@ import com.example.hello.service.AuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class AuthControllerTest {
 
     @Mock

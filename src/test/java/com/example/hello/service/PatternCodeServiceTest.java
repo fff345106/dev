@@ -23,6 +23,7 @@ import com.example.hello.repository.PatternPendingRepository;
 import com.example.hello.repository.PatternRepository;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class PatternCodeServiceTest {
 
     @Mock

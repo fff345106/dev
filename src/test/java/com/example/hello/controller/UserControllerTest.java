@@ -26,6 +26,7 @@ import com.example.hello.service.UserService;
 import com.example.hello.util.JwtUtil;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class UserControllerTest {
 
     @Mock

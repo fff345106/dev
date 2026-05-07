@@ -26,6 +26,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class ImageServiceTest {
 
     @Mock

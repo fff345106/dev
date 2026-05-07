@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,7 +56,7 @@ public class AuditService {
      * 提交纹样待审核（提交时生成编码）
      */
     @Transactional
-    public PatternPending submit(PatternRequest request, Long submitterId) {
+    public PatternPending submit(@NonNull PatternRequest request, @NonNull Long submitterId) {
         patternCodeService.validateRequest(request);
         PatternCodeService.NormalizedPatternCodes normalizedCodes = patternCodeService.normalizeRequest(request);
 
@@ -84,7 +85,7 @@ public class AuditService {
      * 审核纹样
      */
     @Transactional
-    public Object audit(Long pendingId, AuditRequest request, Long auditorId) {
+    public Object audit(@NonNull Long pendingId, @NonNull AuditRequest request, @NonNull Long auditorId) {
         User auditor = userRepository.findById(auditorId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
@@ -137,20 +138,22 @@ public class AuditService {
      * 批量审核
      */
     @Transactional
-    public void batchAudit(BatchAuditRequest request, Long auditorId) {
+    public void batchAudit(@NonNull BatchAuditRequest request, @NonNull Long auditorId) {
         AuditRequest singleRequest = new AuditRequest();
         singleRequest.setApproved(request.getApproved());
         singleRequest.setRejectReason(request.getRejectReason());
 
         for (Long id : request.getIds()) {
-            audit(id, singleRequest, auditorId);
+            if (id != null) {
+                audit(id, singleRequest, auditorId);
+            }
         }
     }
 
     /**
      * 重新提交被拒绝的纹样
      */
-    public PatternPending resubmit(Long pendingId, PatternRequest request, Long submitterId) {
+    public PatternPending resubmit(@NonNull Long pendingId, @NonNull PatternRequest request, @NonNull Long submitterId) {
         PatternPending pending = pendingRepository.findById(pendingId)
                 .orElseThrow(() -> new RuntimeException("记录不存在"));
 
@@ -191,7 +194,7 @@ public class AuditService {
         return pendingRepository.findByStatus(AuditStatus.PENDING);
     }
 
-    public Page<PatternPending> findPending(Pageable pageable) {
+    public Page<PatternPending> findPending(@NonNull Pageable pageable) {
         return pendingRepository.findByStatus(AuditStatus.PENDING, pageable);
     }
 
@@ -202,38 +205,38 @@ public class AuditService {
         return pendingRepository.findAll();
     }
 
-    public Page<PatternPending> findAll(Pageable pageable) {
+    public Page<PatternPending> findAll(@NonNull Pageable pageable) {
         return pendingRepository.findAll(pageable);
     }
 
     /**
      * 根据状态查询
      */
-    public List<PatternPending> findByStatus(AuditStatus status) {
+    public List<PatternPending> findByStatus(@NonNull AuditStatus status) {
         return pendingRepository.findByStatus(status);
     }
 
-    public Page<PatternPending> findByStatus(AuditStatus status, Pageable pageable) {
+    public Page<PatternPending> findByStatus(@NonNull AuditStatus status, @NonNull Pageable pageable) {
         return pendingRepository.findByStatus(status, pageable);
     }
 
     /**
      * 查询提交人的记录
      */
-    public List<PatternPending> findBySubmitter(Long submitterId) {
+    public List<PatternPending> findBySubmitter(@NonNull Long submitterId) {
         return pendingRepository.findBySubmitterId(submitterId);
     }
 
-    public Page<PatternPending> findBySubmitter(Long submitterId, Pageable pageable) {
+    public Page<PatternPending> findBySubmitter(@NonNull Long submitterId, @NonNull Pageable pageable) {
         return pendingRepository.findBySubmitterId(submitterId, pageable);
     }
 
     /**
      * 查询当前用户最近录入的记录（最多100条）
      */
-    public List<PatternPending> findRecentBySubmitter(Long submitterId) {
+    public List<PatternPending> findRecentBySubmitter(@NonNull Long submitterId) {
         return pendingRepository.findBySubmitterIdOrderByCreatedAtDesc(
-                submitterId, 
+                submitterId,
                 org.springframework.data.domain.PageRequest.of(0, 100)
         );
     }
@@ -241,7 +244,7 @@ public class AuditService {
     /**
      * 根据ID查询
      */
-    public PatternPending findById(Long id) {
+    public PatternPending findById(@NonNull Long id) {
         return pendingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("记录不存在"));
     }
@@ -249,7 +252,7 @@ public class AuditService {
     /**
      * 删除待审核记录
      */
-    public void delete(Long id, Long userId) {
+    public void delete(@NonNull Long id, @NonNull Long userId) {
         PatternPending pending = findById(id);
         
         User user = userRepository.findById(userId)
@@ -288,8 +291,11 @@ public class AuditService {
      * 批量删除待审核记录
      */
     @Transactional
-    public void batchDelete(List<Long> ids, Long userId) {
+    public void batchDelete(@NonNull List<Long> ids, @NonNull Long userId) {
         for (Long id : ids) {
+            if (id == null) {
+                continue;
+            }
             try {
                 delete(id, userId);
             } catch (Exception e) {
@@ -302,7 +308,7 @@ public class AuditService {
     /**
      * 确保待审核记录有完整的编码（处理旧数据丢失编码的情况）
      */
-    private void ensureCodes(PatternPending pending) {
+    private void ensureCodes(@NonNull PatternPending pending) {
         patternCodeService.ensurePendingCode(pending);
         pendingRepository.save(pending);
     }
@@ -310,7 +316,7 @@ public class AuditService {
     /**
      * 将审核通过的记录移入正式表（直接使用已生成的编码）
      */
-    private Pattern moveToPattern(PatternPending pending) {
+    private Pattern moveToPattern(@NonNull PatternPending pending) {
         // 确保编码存在
         ensureCodes(pending);
 

@@ -25,6 +25,8 @@ import com.example.hello.util.JwtUtil;
 
 import jakarta.validation.Valid;
 
+import org.springframework.lang.NonNull;
+
 @RestController
 @RequestMapping("/api/patterns")
 public class PatternController {
@@ -52,14 +54,14 @@ public class PatternController {
     }
 
     @GetMapping(value = "/{id}/qrcode", produces = MediaType.IMAGE_PNG_VALUE)
-    public ResponseEntity<byte[]> getQrCode(@PathVariable Long id) {
+    public ResponseEntity<byte[]> getQrCode(@NonNull @PathVariable Long id) {
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_PNG)
                 .body(patternService.generatePatternQrCode(id));
     }
 
     @GetMapping(value = "/code/{code}/qrcode", produces = MediaType.IMAGE_PNG_VALUE)
-    public ResponseEntity<byte[]> getQrCodeByCode(@PathVariable String code) {
+    public ResponseEntity<byte[]> getQrCodeByCode(@NonNull @PathVariable String code) {
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_PNG)
                 .body(patternService.generatePatternQrCodeByCode(code));
@@ -137,7 +139,7 @@ public class PatternController {
     }
 
     @GetMapping("/{id}/download")
-    public ResponseEntity<org.springframework.core.io.InputStreamResource> download(@PathVariable Long id) {
+    public ResponseEntity<org.springframework.core.io.InputStreamResource> download(@NonNull @PathVariable Long id) {
         try {
             java.util.Map<String, Object> result = patternService.download(id);
             java.io.InputStream inputStream = (java.io.InputStream) result.get("stream");
@@ -178,7 +180,7 @@ public class PatternController {
      */
     @PostMapping(value = "/watermark/embed", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<org.springframework.core.io.InputStreamResource> embedWatermark(
-            @RequestParam("file") MultipartFile file,
+            @NonNull @RequestParam("file") MultipartFile file,
             @RequestParam(value = "text", defaultValue = "hidden-watermark") String watermarkText) {
         if (file == null || file.isEmpty()) {
             throw new RuntimeException("请上传需要嵌入水印的图片文件");

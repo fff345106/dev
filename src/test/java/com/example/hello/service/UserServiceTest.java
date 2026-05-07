@@ -21,6 +21,7 @@ import com.example.hello.repository.PatternDraftRepository;
 import com.example.hello.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class UserServiceTest {
 
     @Mock

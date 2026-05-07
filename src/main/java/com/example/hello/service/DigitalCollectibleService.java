@@ -2,6 +2,7 @@ package com.example.hello.service;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.example.hello.dto.DigitalCollectibleCreateRequest;
@@ -35,7 +36,7 @@ public class DigitalCollectibleService {
     }
 
     @Transactional
-    public DigitalCollectible create(DigitalCollectibleCreateRequest request, Long userId) {
+    public DigitalCollectible create(DigitalCollectibleCreateRequest request, @NonNull Long userId) {
         User createdBy = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
@@ -67,7 +68,7 @@ public class DigitalCollectibleService {
         return digitalCollectibleRepository.findByCreatedByIdOrderByCreatedAtDesc(userId, pageable);
     }
 
-    public DigitalCollectible findMyById(Long id, Long userId) {
+    public DigitalCollectible findMyById(@NonNull Long id, @NonNull Long userId) {
         DigitalCollectible collectible = digitalCollectibleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("数字藏品不存在"));
         if (collectible.getCreatedBy() == null || !collectible.getCreatedBy().getId().equals(userId)) {
@@ -77,7 +78,7 @@ public class DigitalCollectibleService {
     }
 
     @Transactional
-    public DigitalCollectible updateVisibility(Long id, Long userId, Boolean visible) {
+    public DigitalCollectible updateVisibility(@NonNull Long id, @NonNull Long userId, Boolean visible) {
         DigitalCollectible collectible = findMyById(id, userId);
         collectible.setIsVisible(Boolean.TRUE.equals(visible));
         return digitalCollectibleRepository.save(collectible);

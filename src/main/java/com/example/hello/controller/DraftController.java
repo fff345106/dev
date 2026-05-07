@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,8 +37,8 @@ public class DraftController {
      */
     @PostMapping
     public ResponseEntity<?> save(
-            @RequestBody DraftRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @RequestBody DraftRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         try {
             Long userId = getUserIdFromToken(token);
             return ResponseEntity.ok(draftService.save(request, userId));
@@ -51,9 +52,9 @@ public class DraftController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<?> update(
-            @PathVariable Long id,
-            @RequestBody DraftRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestBody DraftRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         try {
             Long userId = getUserIdFromToken(token);
             return ResponseEntity.ok(draftService.update(id, request, userId));
@@ -67,7 +68,7 @@ public class DraftController {
      */
     @GetMapping
     public ResponseEntity<List<PatternDraft>> findMyDrafts(
-            @RequestHeader("Authorization") String token) {
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(draftService.findByUser(userId));
     }
@@ -77,8 +78,8 @@ public class DraftController {
      */
     @GetMapping("/{id}")
     public ResponseEntity<?> findById(
-            @PathVariable Long id,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestHeader("Authorization") String token) {
         try {
             Long userId = getUserIdFromToken(token);
             return ResponseEntity.ok(draftService.findById(id, userId));
@@ -92,8 +93,8 @@ public class DraftController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(
-            @PathVariable Long id,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestHeader("Authorization") String token) {
         try {
             Long userId = getUserIdFromToken(token);
             draftService.delete(id, userId);
@@ -108,8 +109,8 @@ public class DraftController {
      */
     @PostMapping("/{id}/submit")
     public ResponseEntity<?> submitToAudit(
-            @PathVariable Long id,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestHeader("Authorization") String token) {
         try {
             Long userId = getUserIdFromToken(token);
             PatternPending pending = draftService.submitToAudit(id, userId);

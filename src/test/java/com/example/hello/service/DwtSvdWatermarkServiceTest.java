@@ -64,39 +64,6 @@ class DwtSvdWatermarkServiceTest {
         return image;
     }
 
-    private BufferedImage buildNearWhiteImage(int width, int height) {
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Random random = new Random(20260420L);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int base = 245 + ((x + y) % 7);
-                int noise = random.nextInt(7) - 3;
-                int channel = clampChannel(base + noise);
-                image.setRGB(x, y, (channel << 16) | (channel << 8) | channel);
-            }
-        }
-        return image;
-    }
-
-    private BufferedImage buildTransparentImage(int width, int height) {
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        Random random = new Random(20260421L);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int alpha = (x < width / 2) ? 0 : 220;
-                if ((x + y) % 29 == 0) {
-                    alpha = 80;
-                }
-                int r = clampChannel((x * 255) / Math.max(width - 1, 1) + random.nextInt(11) - 5);
-                int g = clampChannel((y * 255) / Math.max(height - 1, 1) + random.nextInt(11) - 5);
-                int b = clampChannel(((x + y) * 255) / Math.max(width + height - 2, 1) + random.nextInt(11) - 5);
-                int argb = (alpha << 24) | (r << 16) | (g << 8) | b;
-                image.setRGB(x, y, argb);
-            }
-        }
-        return image;
-    }
-
     private int clampChannel(int v) {
         if (v < 0) {
             return 0;

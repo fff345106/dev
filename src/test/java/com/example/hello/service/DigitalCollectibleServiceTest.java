@@ -27,6 +27,7 @@ import com.example.hello.repository.PatternRepository;
 import com.example.hello.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class DigitalCollectibleServiceTest {
 
     @Mock

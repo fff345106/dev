@@ -101,6 +101,13 @@
             <version>4.12.0</version>
         </dependency>
 
+        <!-- BouncyCastle for SM2/SM3 national cryptography (SM3withSM2 signing) -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.78.1</version>
+        </dependency>
+
         <!-- QRCode generation -->
         <dependency>
             <groupId>com.google.zxing</groupId>

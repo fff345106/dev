@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,8 +47,8 @@ public class UserController {
      */
     @DeleteMapping("/{userId:\\d+}")
     public ResponseEntity<?> deleteUser(
-            @PathVariable Long userId,
-            @RequestHeader(value = "Authorization", required = false) String token) {
+            @NonNull @PathVariable Long userId,
+            @NonNull @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             if (token == null || token.isEmpty()) {
                 return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
@@ -64,7 +65,7 @@ public class UserController {
      * 获取用户信息
      */
     @GetMapping("/{userId:\\d+}")
-    public ResponseEntity<?> getUserInfo(@PathVariable Long userId) {
+    public ResponseEntity<?> getUserInfo(@NonNull @PathVariable Long userId) {
         try {
             return ResponseEntity.ok(userService.getUserById(userId));
         } catch (RuntimeException e) {
@@ -77,8 +78,8 @@ public class UserController {
      */
     @GetMapping
     public ResponseEntity<?> getAllUsers(
-            @RequestHeader(value = "Authorization", required = false) String token, 
-            @PageableDefault(size = 20) Pageable pageable) {
+            @NonNull @RequestHeader(value = "Authorization", required = false) String token, 
+            @NonNull @PageableDefault(size = 20) Pageable pageable) {
         try {
             if (token == null || token.isEmpty()) {
                 return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
@@ -95,9 +96,9 @@ public class UserController {
      */
     @PutMapping("/{userId:\\d+}/role")
     public ResponseEntity<?> setUserRole(
-            @PathVariable Long userId,
-            @RequestBody Map<String, String> request,
-            @RequestHeader(value = "Authorization", required = false) String token) {
+            @NonNull @PathVariable Long userId,
+            @NonNull @RequestBody Map<String, String> request,
+            @NonNull @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             if (token == null || token.isEmpty()) {
                 return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
@@ -121,7 +122,7 @@ public class UserController {
      */
     @PostMapping("/invite-codes")
     public ResponseEntity<?> generateInvitationCode(
-            @RequestHeader(value = "Authorization", required = false) String token) {
+            @NonNull @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             if (token == null || token.isEmpty()) {
                 return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
@@ -140,9 +141,9 @@ public class UserController {
      */
     @PutMapping("/{userId:\\d+}/username")
     public ResponseEntity<?> updateUsername(
-            @PathVariable Long userId,
-            @RequestBody @Valid UpdateUsernameRequest request,
-            @RequestHeader(value = "Authorization", required = false) String token) {
+            @NonNull @PathVariable Long userId,
+            @NonNull @RequestBody @Valid UpdateUsernameRequest request,
+            @NonNull @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             if (token == null || token.isEmpty()) {
                 return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
@@ -162,9 +163,9 @@ public class UserController {
      */
     @PostMapping("/{userId:\\d+}/avatar")
     public ResponseEntity<?> uploadAvatar(
-            @PathVariable Long userId,
-            @RequestParam("file") MultipartFile file,
-            @RequestHeader(value = "Authorization", required = false) String token) {
+            @NonNull @PathVariable Long userId,
+            @NonNull @RequestParam("file") MultipartFile file,
+            @NonNull @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             if (token == null || token.isEmpty()) {
                 return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
@@ -188,7 +189,7 @@ public class UserController {
      * 获取用户头像URL
      */
     @GetMapping("/{userId:\\d+}/avatar")
-    public ResponseEntity<?> getAvatarUrl(@PathVariable Long userId) {
+    public ResponseEntity<?> getAvatarUrl(@NonNull @PathVariable Long userId) {
         try {
             String avatarUrl = userService.getAvatarUrl(userId);
             if (avatarUrl == null || avatarUrl.isEmpty()) {

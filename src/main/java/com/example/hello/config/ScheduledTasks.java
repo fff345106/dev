@@ -31,6 +31,7 @@ public class ScheduledTasks {
         List<PatternPending> approvedRecords = pendingRepository.findApprovedBeforeTime(cutoffTime);
         
         for (PatternPending record : approvedRecords) {
+            if (record == null) continue;
             try {
                 pendingRepository.delete(record);
             } catch (Exception e) {

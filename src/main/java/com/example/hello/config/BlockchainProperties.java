@@ -22,17 +22,12 @@ public class BlockchainProperties {
     private int apiTimeoutMillis = 15000;
 
     /**
-     * 本地GO SDK HttpService地址
-     */
-    private String sdkBaseUrl = "http://127.0.0.1:30505";
-
-    /**
-     * 存证业务签名使用的私钥（用于 signByPriKey）
+     * 存证业务签名使用的私钥（用于 SM3withSM2 签名）
      */
     private String evidencePrivateKey;
 
     /**
-     * 存证业务公钥（可选；为空时通过本地SDK priKey2PubKey生成）
+     * 存证业务公钥（可选；为空时从私钥自动推导）
      */
     private String evidencePublicKey;
 
@@ -91,14 +86,6 @@ public class BlockchainProperties {
 
     public void setApiTimeoutMillis(int apiTimeoutMillis) {
         this.apiTimeoutMillis = apiTimeoutMillis;
-    }
-
-    public String getSdkBaseUrl() {
-        return sdkBaseUrl;
-    }
-
-    public void setSdkBaseUrl(String sdkBaseUrl) {
-        this.sdkBaseUrl = sdkBaseUrl;
     }
 
     public String getEvidencePrivateKey() {

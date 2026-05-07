@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -119,11 +120,11 @@ public class PatternService {
         return result;
     }
 
-    public Page<Pattern> findAll(Pageable pageable) {
+    public Page<Pattern> findAll(@NonNull Pageable pageable) {
         return patternRepository.findAll(pageable);
     }
 
-    public Pattern findById(Long id) {
+    public Pattern findById(@NonNull Long id) {
         String key = "patterns::id:" + id;
         Pattern cached = redisCacheService.get(key, Pattern.class);
         if (cached != null) return cached;
@@ -202,7 +203,7 @@ public class PatternService {
     }
 
     @Transactional
-    public void delete(Long id, com.example.hello.enums.UserRole role) {
+    public void delete(@NonNull Long id, @NonNull com.example.hello.enums.UserRole role) {
         Pattern pattern = findById(id);
 
         if (role == com.example.hello.enums.UserRole.USER || role == com.example.hello.enums.UserRole.GUEST) {
@@ -317,7 +318,7 @@ public class PatternService {
         );
     }
 
-    public void batchDownload(List<Long> ids, java.io.OutputStream outputStream) throws IOException {
+    public void batchDownload(@NonNull List<Long> ids, @NonNull java.io.OutputStream outputStream) throws IOException {
         List<Pattern> patterns = patternRepository.findAllById(ids);
 
         try (java.util.zip.ZipOutputStream zipOut = new java.util.zip.ZipOutputStream(outputStream)) {
@@ -377,13 +378,6 @@ public class PatternService {
                 "decodedText", result.getDecodedText() == null ? "" : result.getDecodedText(),
                 "confidence", result.getConfidence(),
                 "message", result.getMessage());
-    }
-
-    private String extractExtension(String imageUrl) {
-        if (imageUrl == null || !imageUrl.contains(".")) {
-            return ".jpg";
-        }
-        return imageUrl.substring(imageUrl.lastIndexOf("."));
     }
 
     private String resolveContentTypeByExtension(String extension) {

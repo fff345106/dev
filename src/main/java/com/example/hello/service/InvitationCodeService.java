@@ -3,6 +3,7 @@ package com.example.hello.service;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,7 +13,6 @@ import com.example.hello.enums.UserRole;
 import com.example.hello.repository.InvitationCodeRepository;
 import com.example.hello.repository.UserRepository;
 import com.example.hello.service.AppInvitationCodeVerifier.VerificationResult;
-import com.example.hello.service.AppInvitationCodeVerifier.VerificationStatus;
 
 @Service
 public class InvitationCodeService {
@@ -50,7 +50,7 @@ public class InvitationCodeService {
     }
 
     @Transactional
-    public String generateCode(Long operatorUserId) {
+    public String generateCode(@NonNull Long operatorUserId) {
         User operator = userRepository.findById(operatorUserId)
                 .orElseThrow(() -> new RuntimeException("操作者不存在"));
 

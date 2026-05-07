@@ -41,7 +41,9 @@ public class StatsService {
         long totalCount = patternRepository.count();
 
         StatsResponse result = new StatsResponse(todaySubmitCount, pendingCount, approvedCount, totalCount);
-        redisCacheService.put(CACHE_KEY, result, CACHE_TTL);
+        if (result != null && CACHE_TTL != null) {
+            redisCacheService.put(CACHE_KEY, result, CACHE_TTL);
+        }
         return result;
     }
 }

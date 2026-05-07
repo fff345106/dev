@@ -21,6 +21,7 @@ import com.example.hello.entity.SpecialEvent;
 import com.example.hello.repository.SpecialEventRepository;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class SpecialEventServiceTest {
 
     @Mock

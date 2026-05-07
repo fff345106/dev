@@ -3,6 +3,7 @@ package com.example.hello.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,12 +32,12 @@ public class SpecialEventController {
     }
 
     @PostMapping
-    public ResponseEntity<SpecialEventListItemResponse> create(@RequestBody SpecialEventCreateRequest request) {
+    public ResponseEntity<SpecialEventListItemResponse> create(@NonNull @RequestBody SpecialEventCreateRequest request) {
         return ResponseEntity.ok(specialEventService.create(request));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@NonNull @PathVariable Long id) {
         specialEventService.delete(id);
         return ResponseEntity.ok().build();
     }

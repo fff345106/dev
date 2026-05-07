@@ -4,6 +4,7 @@ import java.time.Duration;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +34,7 @@ public class AppReviewService {
     }
 
     @Transactional
-    public AppReview submitReview(Long userId, Integer rating, String comment) {
+    public AppReview submitReview(@NonNull Long userId, @NonNull Integer rating, String comment) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
@@ -71,7 +72,9 @@ public class AppReviewService {
         );
 
         // 写入缓存
-        redisCacheService.put(STATS_CACHE_KEY, stats, CACHE_TTL);
+        if (stats != null && CACHE_TTL != null) {
+            redisCacheService.put(STATS_CACHE_KEY, stats, CACHE_TTL);
+        }
 
         return stats;
     }
@@ -81,7 +84,7 @@ public class AppReviewService {
     }
 
     @Transactional
-    public void deleteReview(Long reviewId, UserRole operatorRole) {
+    public void deleteReview(@NonNull Long reviewId, @NonNull UserRole operatorRole) {
         if (operatorRole != UserRole.ADMIN && operatorRole != UserRole.SUPER_ADMIN) {
             throw new RuntimeException("仅管理员可以删除评价");
         }
@@ -89,7 +92,9 @@ public class AppReviewService {
         AppReview review = appReviewRepository.findById(reviewId)
                 .orElseThrow(() -> new RuntimeException("评价不存在"));
 
-        appReviewRepository.delete(review);
+        if (review != null) {
+            appReviewRepository.delete(review);
+        }
 
         // 清除统计缓存
         redisCacheService.evict(STATS_CACHE_KEY);

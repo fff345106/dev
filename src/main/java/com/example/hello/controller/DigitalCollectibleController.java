@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,34 +38,34 @@ public class DigitalCollectibleController {
 
     @PostMapping
     public ResponseEntity<DigitalCollectible> create(
-            @Valid @RequestBody DigitalCollectibleCreateRequest request,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @Valid @RequestBody DigitalCollectibleCreateRequest request,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(digitalCollectibleService.create(request, userId));
     }
 
     @GetMapping("/my")
     public ResponseEntity<Page<DigitalCollectible>> findMy(
-            @RequestHeader("Authorization") String token,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @NonNull @RequestHeader("Authorization") String token,
+            @NonNull @PageableDefault(size = 20) Pageable pageable) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(digitalCollectibleService.findMy(userId, pageable));
     }
 
     @GetMapping("/my/{id}")
     public ResponseEntity<DigitalCollectible> findMyById(
-            @PathVariable Long id,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
         return ResponseEntity.ok(digitalCollectibleService.findMyById(id, userId));
     }
 
     @PutMapping("/my/{id}/visibility")
     public ResponseEntity<DigitalCollectible> updateVisibility(
-            @PathVariable Long id,
-            @RequestParam(value = "visible", required = false) Boolean visible,
-            @RequestBody(required = false) Map<String, Object> body,
-            @RequestHeader("Authorization") String token) {
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestParam(value = "visible", required = false) Boolean visible,
+            @NonNull @RequestBody(required = false) Map<String, Object> body,
+            @NonNull @RequestHeader("Authorization") String token) {
         if (visible == null && body != null) {
             Object value = body.get("visible");
             if (value == null) {

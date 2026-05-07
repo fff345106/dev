@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,7 +52,7 @@ public class OpenApiController {
             @RequestParam(required = false) String style,
             @RequestParam(required = false) String region,
             @RequestParam(required = false) String period,
-            Pageable pageable) {
+            @NonNull Pageable pageable) {
         
         Specification<Pattern> spec = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -120,7 +121,7 @@ public class OpenApiController {
     }
 
     @GetMapping(value = "/{code}/table", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> getPatternTable(@PathVariable String code) {
+    public ResponseEntity<String> getPatternTable(@NonNull @PathVariable String code) {
         Pattern pattern = patternRepository.findByPatternCode(code).orElse(null);
         if (pattern == null || !"APPROVED".equalsIgnoreCase(pattern.getStatus())) {
             String notFoundHtml = """
@@ -277,7 +278,7 @@ String tableRows = String.join("",
         return !normalized.isEmpty();
     }
 
-    private String safe(Object value) {
+    private String safe(@NonNull Object value) {
         if (value == null) {
             return "-";
         }

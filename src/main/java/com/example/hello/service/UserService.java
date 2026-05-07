@@ -5,6 +5,7 @@ import java.time.Duration;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,7 +33,7 @@ public class UserService {
     }
 
     @Transactional
-    public void deleteUser(Long targetUserId, Long operatorUserId) {
+    public void deleteUser(@NonNull Long targetUserId, @NonNull Long operatorUserId) {
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
@@ -50,12 +51,15 @@ public class UserService {
             throw new RuntimeException("不允许删除超级管理员账号");
         }
 
-        draftRepository.deleteAll(draftRepository.findByUserIdOrderByUpdatedAtDesc(targetUserId));
+        var drafts = draftRepository.findByUserIdOrderByUpdatedAtDesc(targetUserId);
+        if (drafts != null) {
+            draftRepository.deleteAll(drafts);
+        }
         userRepository.delete(targetUser);
         redisCacheService.evict("users::id:" + targetUserId);
     }
 
-    public User getUserById(Long userId) {
+    public User getUserById(@NonNull Long userId) {
         if (userId < 0) {
             User guest = new User();
             guest.setId(userId);
@@ -68,11 +72,13 @@ public class UserService {
         if (cached != null) return cached;
         User result = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        redisCacheService.put(key, result, CACHE_TTL);
+        if (result != null && CACHE_TTL != null) {
+            redisCacheService.put(key, result, CACHE_TTL);
+        }
         return result;
     }
 
-    public java.util.List<User> getAllUsers(Long operatorUserId) {
+    public java.util.List<User> getAllUsers(@NonNull Long operatorUserId) {
         User operator = userRepository.findById(operatorUserId)
                 .orElseThrow(() -> new RuntimeException("操作者不存在"));
 
@@ -83,7 +89,7 @@ public class UserService {
         return userRepository.findAll();
     }
 
-    public Page<User> getAllUsers(Long operatorUserId, Pageable pageable) {
+    public Page<User> getAllUsers(@NonNull Long operatorUserId, @NonNull Pageable pageable) {
         User operator = userRepository.findById(operatorUserId)
                 .orElseThrow(() -> new RuntimeException("操作者不存在"));
 
@@ -94,7 +100,7 @@ public class UserService {
         return userRepository.findAll(pageable);
     }
 
-    public User setUserRole(Long targetUserId, UserRole newRole, Long operatorUserId) {
+    public User setUserRole(@NonNull Long targetUserId, @NonNull UserRole newRole, @NonNull Long operatorUserId) {
         User operator = userRepository.findById(operatorUserId)
                 .orElseThrow(() -> new RuntimeException("操作者不存在"));
 
@@ -120,7 +126,7 @@ public class UserService {
     }
 
     @Transactional
-    public User updateUsername(Long targetUserId, String newUsername, Long operatorUserId) {
+    public User updateUsername(@NonNull Long targetUserId, @NonNull String newUsername, @NonNull Long operatorUserId) {
         // 1. 验证权限
         User operator = userRepository.findById(operatorUserId)
                 .orElseThrow(() -> new RuntimeException("操作者不存在"));
@@ -166,7 +172,7 @@ public class UserService {
      * @param userId 用户ID
      * @return 头像URL，如果未设置则返回null
      */
-    public String getAvatarUrl(Long userId) {
+    public String getAvatarUrl(@NonNull Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
         return user.getAvatarUrl();
@@ -180,7 +186,7 @@ public class UserService {
      * @return 更新后的用户对象
      */
     @Transactional
-    public User updateAvatar(Long userId, MultipartFile file, Long operatorUserId) {
+    public User updateAvatar(@NonNull Long userId, @NonNull MultipartFile file, @NonNull Long operatorUserId) {
         // 1. 验证目标用户存在
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));

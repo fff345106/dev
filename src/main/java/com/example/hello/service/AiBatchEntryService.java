@@ -408,6 +408,9 @@ public class AiBatchEntryService {
             patternRequest.setStoryText(confirmItem.getStoryText());
             patternRequest.setStoryImageUrl(confirmItem.getStoryImageUrl());
 
+            if (submitterId == null) {
+                throw new IllegalArgumentException("提交者ID不能为空");
+            }
             PatternPending pending = auditService.submit(patternRequest, submitterId);
             itemResult.setSuccess(true);
             itemResult.setPendingId(pending.getId());

@@ -40,10 +40,13 @@ public class BlockchainAnchorService {
 
     private final BlockchainProperties properties;
     private final ObjectMapper objectMapper;
+    private final ZxchainCryptoService cryptoService;
 
-    public BlockchainAnchorService(BlockchainProperties properties, ObjectMapper objectMapper) {
+    public BlockchainAnchorService(BlockchainProperties properties, ObjectMapper objectMapper,
+                                   ZxchainCryptoService cryptoService) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.cryptoService = cryptoService;
     }
 
     public AnchorResult anchor(String patternCode, String imageHash, String imageUrl) {
@@ -57,15 +60,23 @@ public class BlockchainAnchorService {
     }
 
     private AnchorResult anchorByZxchainOpen(String patternCode, String imageHash, String imageUrl) {
-        HttpClient httpClient = buildHttpClient();
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getApiTimeoutMillis()))
+                .build();
 
         try {
             String extendInfo = buildExtendInfo(patternCode, imageUrl);
-            String publicKey = resolveEvidencePublicKey(httpClient);
-            String dataToSign = publicKey + "_" + imageHash + "_" + extendInfo;
-            String bizSign = signByPriKey(httpClient, properties.getEvidencePrivateKey(), dataToSign);
 
-            ApiSignData signData = generateApiSignViaSdk(httpClient, properties.getSecretId(), properties.getSecretKey());
+            // 纯 Java 推导公钥（不再依赖本地 Go SDK）
+            String publicKey = resolveEvidencePublicKey();
+
+            // 纯 Java SM3withSM2 签名（不再依赖本地 Go SDK）
+            String dataToSign = publicKey + "_" + imageHash + "_" + extendInfo;
+            String bizSign = cryptoService.signData(properties.getEvidencePrivateKey(), dataToSign);
+
+            // 纯 Java HMAC-SHA256 API 鉴权签名（不再依赖本地 Go SDK）
+            ZxchainCryptoService.ApiSignatureResult signData =
+                    cryptoService.generateApiSignature(properties.getSecretId(), properties.getSecretKey());
 
             String requestBody = objectMapper.createObjectNode()
                     .put("publicKey", publicKey)
@@ -113,91 +124,14 @@ public class BlockchainAnchorService {
         }
     }
 
-    private HttpClient buildHttpClient() {
-        return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(properties.getApiTimeoutMillis()))
-                .build();
-    }
-
-    private ApiSignData generateApiSignViaSdk(HttpClient httpClient, String secretId, String secretKey)
-            throws IOException, InterruptedException {
-        JsonNode req = objectMapper.createObjectNode()
-                .put("secretId", secretId)
-                .put("secretKey", secretKey);
-        JsonNode root = postJson(httpClient, properties.getSdkBaseUrl(), "/generateApiSign", req.toString());
-
-        String err = textOrNull(root.path("err"));
-        if (!isBlank(err)) {
-            throw new RuntimeException("本地SDK generateApiSign失败: " + err);
-        }
-
-        JsonNode signData = root.path("signData");
-        String signature = textOrNull(signData.path("signature"));
-        String signatureTime = textOrNull(signData.path("signatureTime"));
-        Integer nonce = intOrNull(signData.path("nonce"));
-
-        if (isBlank(signature) || isBlank(signatureTime) || nonce == null) {
-            throw new RuntimeException("本地SDK generateApiSign返回不完整");
-        }
-        return new ApiSignData(signature, signatureTime, nonce);
-    }
-
-    private String resolveEvidencePublicKey(HttpClient httpClient) throws IOException, InterruptedException {
+    /**
+     * 解析公钥：优先使用配置中的静态公钥，否则从私钥推导。
+     */
+    private String resolveEvidencePublicKey() {
         if (!isBlank(properties.getEvidencePublicKey())) {
             return properties.getEvidencePublicKey().trim();
         }
-
-        JsonNode req = objectMapper.createObjectNode()
-                .put("pri", properties.getEvidencePrivateKey());
-        JsonNode root = postJson(httpClient, properties.getSdkBaseUrl(), "/priKey2PubKey", req.toString());
-
-        String err = textOrNull(root.path("err"));
-        if (!isBlank(err)) {
-            throw new RuntimeException("本地SDK priKey2PubKey失败: " + err);
-        }
-
-        String pub = textOrNull(root.path("pub"));
-        if (isBlank(pub)) {
-            throw new RuntimeException("本地SDK priKey2PubKey返回公钥为空");
-        }
-        return pub;
-    }
-
-    private String signByPriKey(HttpClient httpClient, String priKey, String data)
-            throws IOException, InterruptedException {
-        JsonNode req = objectMapper.createObjectNode()
-                .put("priKey", priKey)
-                .put("data", data);
-        JsonNode root = postJson(httpClient, properties.getSdkBaseUrl(), "/signByPriKey", req.toString());
-
-        String err = textOrNull(root.path("err"));
-        if (!isBlank(err)) {
-            throw new RuntimeException("本地SDK signByPriKey失败: " + err);
-        }
-
-        String signedData = textOrNull(root.path("signedData"));
-        if (isBlank(signedData)) {
-            throw new RuntimeException("本地SDK signByPriKey返回签名为空");
-        }
-        return signedData;
-    }
-
-    private JsonNode postJson(HttpClient httpClient, String baseUrl, String path, String json)
-            throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(normalizeBaseUrl(baseUrl) + path))
-                .timeout(Duration.ofMillis(properties.getApiTimeoutMillis()))
-                .header("Content-Type", "application/json;charset=utf-8")
-                .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new RuntimeException("调用本地SDK失败: path=" + path + ", status=" + response.statusCode() + ", body="
-                    + abbreviate(response.body()));
-        }
-        return objectMapper.readTree(response.body());
+        return cryptoService.derivePublicKey(properties.getEvidencePrivateKey());
     }
 
     private String buildExtendInfo(String patternCode, String imageUrl) {
@@ -299,9 +233,6 @@ public class BlockchainAnchorService {
         if (isBlank(properties.getApiBaseUrl())) {
             throw new RuntimeException("缺少区块链配置: blockchain.api-base-url");
         }
-        if (isBlank(properties.getSdkBaseUrl())) {
-            throw new RuntimeException("缺少区块链配置: blockchain.sdk-base-url");
-        }
         if (isBlank(properties.getSecretId())) {
             throw new RuntimeException("缺少区块链配置: blockchain.secret-id");
         }
@@ -366,24 +297,6 @@ public class BlockchainAnchorService {
         }
     }
 
-    private Integer intOrNull(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull()) {
-            return null;
-        }
-        if (node.isInt() || node.isLong()) {
-            return node.asInt();
-        }
-        String text = textOrNull(node);
-        if (isBlank(text)) {
-            return null;
-        }
-        try {
-            return Integer.parseInt(text);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
     private String textOrNull(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return null;
@@ -422,9 +335,6 @@ public class BlockchainAnchorService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
-    }
-
-    private record ApiSignData(String signature, String signatureTime, int nonce) {
     }
 
     public record AnchorResult(String txHash, Long blockNumber, LocalDateTime blockTimestamp, String status) {

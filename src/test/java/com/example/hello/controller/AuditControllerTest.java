@@ -37,6 +37,7 @@ import com.example.hello.util.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class AuditControllerTest {
 
     @Mock

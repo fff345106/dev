@@ -3,6 +3,7 @@ package com.example.hello.service;
 import java.time.Duration;
 
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -39,7 +40,7 @@ public class RedisCacheService {
      * @param clazz 目标类型
      * @return 缓存的对象，不存在则返回 null
      */
-    public <T> T get(String key, Class<T> clazz) {
+    public <T> T get(@NonNull String key, @NonNull Class<T> clazz) {
         String json = redisTemplate.opsForValue().get(key);
         if (json == null) {
             return null;
@@ -59,7 +60,7 @@ public class RedisCacheService {
      * @param typeRef 类型引用（如 new TypeReference<List<StatsResponse>>() {}）
      * @return 缓存的对象，不存在则返回 null
      */
-    public <T> T get(String key, TypeReference<T> typeRef) {
+    public <T> T get(@NonNull String key, @NonNull TypeReference<T> typeRef) {
         String json = redisTemplate.opsForValue().get(key);
         if (json == null) {
             return null;
@@ -78,10 +79,12 @@ public class RedisCacheService {
      * @param value 缓存值
      * @param ttl 过期时间
      */
-    public void put(String key, Object value, Duration ttl) {
+    public void put(@NonNull String key, @NonNull Object value, @NonNull Duration ttl) {
         try {
             String json = objectMapper.writeValueAsString(value);
-            redisTemplate.opsForValue().set(key, json, ttl);
+            if (json != null) {
+                redisTemplate.opsForValue().set(key, json, ttl);
+            }
         } catch (JsonProcessingException e) {
             // 序列化失败不写缓存
         }
@@ -90,14 +93,14 @@ public class RedisCacheService {
     /**
      * 删除缓存
      */
-    public void evict(String key) {
+    public void evict(@NonNull String key) {
         redisTemplate.delete(key);
     }
 
     /**
      * 删除匹配模式的缓存键
      */
-    public void evictPattern(String pattern) {
+    public void evictPattern(@NonNull String pattern) {
         var keys = redisTemplate.keys(pattern);
         if (keys != null && !keys.isEmpty()) {
             redisTemplate.delete(keys);

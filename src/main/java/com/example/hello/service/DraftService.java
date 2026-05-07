@@ -7,6 +7,7 @@ import com.example.hello.entity.PatternPending;
 import com.example.hello.entity.User;
 import com.example.hello.repository.PatternDraftRepository;
 import com.example.hello.repository.UserRepository;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +36,7 @@ public class DraftService {
     /**
      * 保存草稿
      */
-    public PatternDraft save(DraftRequest request, Long userId) {
+    public PatternDraft save(@NonNull DraftRequest request, @NonNull Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
@@ -55,7 +56,7 @@ public class DraftService {
     /**
      * 更新草稿
      */
-    public PatternDraft update(Long draftId, DraftRequest request, Long userId) {
+    public PatternDraft update(@NonNull Long draftId, @NonNull DraftRequest request, @NonNull Long userId) {
         PatternDraft draft = draftRepository.findById(draftId)
                 .orElseThrow(() -> new RuntimeException("草稿不存在"));
 
@@ -80,14 +81,14 @@ public class DraftService {
     /**
      * 获取用户的草稿列表
      */
-    public List<PatternDraft> findByUser(Long userId) {
+    public List<PatternDraft> findByUser(@NonNull Long userId) {
         return draftRepository.findByUserIdOrderByUpdatedAtDesc(userId);
     }
 
     /**
      * 获取单个草稿
      */
-    public PatternDraft findById(Long draftId, Long userId) {
+    public PatternDraft findById(@NonNull Long draftId, @NonNull Long userId) {
         PatternDraft draft = draftRepository.findById(draftId)
                 .orElseThrow(() -> new RuntimeException("草稿不存在"));
 
@@ -101,7 +102,7 @@ public class DraftService {
     /**
      * 删除草稿
      */
-    public void delete(Long draftId, Long userId) {
+    public void delete(@NonNull Long draftId, @NonNull Long userId) {
         PatternDraft draft = draftRepository.findById(draftId)
                 .orElseThrow(() -> new RuntimeException("草稿不存在"));
 
@@ -126,7 +127,7 @@ public class DraftService {
      * 提交草稿到审核
      */
     @Transactional
-    public PatternPending submitToAudit(Long draftId, Long userId) {
+    public PatternPending submitToAudit(@NonNull Long draftId, @NonNull Long userId) {
         PatternDraft draft = draftRepository.findById(draftId)
                 .orElseThrow(() -> new RuntimeException("草稿不存在"));
 
