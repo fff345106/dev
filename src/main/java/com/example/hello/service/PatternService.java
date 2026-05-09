@@ -28,6 +28,7 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 
 import com.example.hello.dto.PatternRequest;
+import com.example.hello.dto.WatermarkResult;
 import com.example.hello.entity.Pattern;
 import com.example.hello.enums.ImageSourceType;
 import com.example.hello.repository.PatternPendingRepository;
@@ -42,6 +43,7 @@ public class PatternService {
     private final ImageService imageService;
     private final PatternCodeService patternCodeService;
     private final DwtSvdWatermarkService dwtSvdWatermarkService;
+    private final WatermarkStorageService watermarkStorageService;
     private final RedisCacheService redisCacheService;
     private final String publicBaseUrl;
 
@@ -53,7 +55,7 @@ public class PatternService {
             PatternCodeService patternCodeService,
             RedisCacheService redisCacheService,
             @Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl) {
-        this(patternRepository, patternPendingRepository, imageService, patternCodeService, redisCacheService, publicBaseUrl, new DwtSvdWatermarkService());
+        this(patternRepository, patternPendingRepository, imageService, patternCodeService, redisCacheService, publicBaseUrl, new DwtSvdWatermarkService(), null);
     }
 
     PatternService(
@@ -63,13 +65,15 @@ public class PatternService {
             PatternCodeService patternCodeService,
             RedisCacheService redisCacheService,
             String publicBaseUrl,
-            DwtSvdWatermarkService dwtSvdWatermarkService) {
+            DwtSvdWatermarkService dwtSvdWatermarkService,
+            WatermarkStorageService watermarkStorageService) {
         this.patternRepository = patternRepository;
         this.patternPendingRepository = patternPendingRepository;
         this.imageService = imageService;
         this.patternCodeService = patternCodeService;
         this.publicBaseUrl = publicBaseUrl;
         this.dwtSvdWatermarkService = dwtSvdWatermarkService;
+        this.watermarkStorageService = watermarkStorageService;
         this.redisCacheService = redisCacheService;
     }
 
@@ -101,6 +105,18 @@ public class PatternService {
                 }
                 pattern.setImageUrl(newUrl);
                 pattern.setImageSourceType(sourceType.name());
+
+                // 嵌入水印并存储双版本
+                if (watermarkStorageService != null) {
+                    try {
+                        WatermarkResult wmResult = watermarkStorageService.embedAndStore(
+                                newUrl, pattern.getPatternCode(), 0L);
+                        pattern.setImageUrl(wmResult.getOriginalUrl());
+                        pattern.setWatermarkedUrl(wmResult.getWatermarkedUrl());
+                    } catch (Exception e) {
+                        System.err.println("水印嵌入失败，降级使用原图: " + e.getMessage());
+                    }
+                }
             } catch (IOException e) {
                 throw new RuntimeException("处理图片失败: " + e.getMessage(), e);
             }
@@ -304,11 +320,19 @@ public class PatternService {
 
         String outputExtension = ".png";
         String filename = pattern.getPatternCode() + outputExtension;
-        String hiddenWatermark = buildHiddenWatermark(pattern.getPatternCode());
 
         byte[] watermarked;
-        try (InputStream inputStream = imageService.download(pattern.getImageUrl())) {
-            watermarked = addRobustWatermark(inputStream, hiddenWatermark, outputExtension);
+        // 优先使用已存储的水印图（新纹样都有 watermarkedUrl）
+        if (pattern.getWatermarkedUrl() != null && !pattern.getWatermarkedUrl().isEmpty()) {
+            try (InputStream inputStream = imageService.download(pattern.getWatermarkedUrl())) {
+                watermarked = inputStream.readAllBytes();
+            }
+        } else {
+            // 降级：历史纹样无 watermarkedUrl，实时嵌入水印
+            String hiddenWatermark = buildHiddenWatermark(pattern.getPatternCode(), 0L);
+            try (InputStream inputStream = imageService.download(pattern.getImageUrl())) {
+                watermarked = addRobustWatermark(inputStream, hiddenWatermark, outputExtension);
+            }
         }
 
         return java.util.Map.of(
@@ -340,7 +364,7 @@ public class PatternService {
                 usedFilenames.add(filename);
 
                 try (InputStream inputStream = imageService.download(pattern.getImageUrl())) {
-                    byte[] watermarked = addRobustWatermark(inputStream, buildHiddenWatermark(pattern.getPatternCode()), outputExtension);
+                    byte[] watermarked = addRobustWatermark(inputStream, buildHiddenWatermark(pattern.getPatternCode(), 0L), outputExtension);
 
                     java.util.zip.ZipEntry zipEntry = new java.util.zip.ZipEntry(filename);
                     zipOut.putNextEntry(zipEntry);
@@ -353,12 +377,13 @@ public class PatternService {
         }
     }
 
-    private String buildHiddenWatermark(String patternCode) {
+    private String buildHiddenWatermark(String patternCode, Long uploaderId) {
         String code = (patternCode == null) ? "" : patternCode.trim();
+        String userId = (uploaderId == null) ? "0" : uploaderId.toString();
         if (code.isEmpty()) {
-            return "WM";
+            return "WM::" + userId;
         }
-        return "WM:" + code;
+        return "WM:" + code + ":" + userId;
     }
 
     private byte[] addRobustWatermark(InputStream sourceStream, String watermarkText, String extension) throws IOException {
