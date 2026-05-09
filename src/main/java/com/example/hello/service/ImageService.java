@@ -40,6 +40,8 @@ public class ImageService {
 
     private static final String TEMP_FOLDER = "temp/";
     private static final String AVATAR_FOLDER = "avatars/";
+    private static final String FORMAL_PREFIX = "patterns/original/";
+    private static final String WATERMARKED_PREFIX = "patterns/watermarked/";
     private static final long MAX_AVATAR_BYTES = 2L * 1024 * 1024; // 2MB
     private static final long MAX_EXTERNAL_IMAGE_BYTES = 15L * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTERNAL_CONTENT_TYPES = Set.of(
@@ -205,7 +207,7 @@ public class ImageService {
         try {
             String tempKey = extractKeyFromUrl(tempUrl);
             String extension = getFileExtension(tempKey);
-            String newKey = patternCode + extension;
+            String newKey = FORMAL_PREFIX + patternCode + extension;
 
             List<String> sourceKeyCandidates = new ArrayList<>();
             sourceKeyCandidates.add(tempKey);
@@ -262,7 +264,7 @@ public class ImageService {
         try {
             String sourceKey = extractKeyFromUrl(sourceUrl);
             String extension = getFileExtension(sourceKey);
-            String newKey = patternCode + extension;
+            String newKey = FORMAL_PREFIX + patternCode + extension;
             copyObject(sourceKey, newKey);
             return baseUrl + "/" + newKey;
         } catch (S3Exception e) {
@@ -321,7 +323,7 @@ public class ImageService {
         }
 
         String extension = resolveExtensionForExternal(uri.getPath(), contentType);
-        String newKey = patternCode + extension;
+        String newKey = FORMAL_PREFIX + patternCode + extension;
 
         try {
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
@@ -411,24 +413,72 @@ public class ImageService {
     }
 
     /**
-     * 下载图片
+     * 下载图片（含回退逻辑）
      */
     public software.amazon.awssdk.core.ResponseInputStream<software.amazon.awssdk.services.s3.model.GetObjectResponse> download(String imageUrl) throws IOException {
         if (imageUrl == null || imageUrl.isEmpty()) {
             throw new IllegalArgumentException("图片URL不能为空");
         }
 
+        String key = extractKeyFromUrl(imageUrl);
         try {
-            String key = extractKeyFromUrl(imageUrl);
             software.amazon.awssdk.services.s3.model.GetObjectRequest request = software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
                     .bucket(bucket)
                     .key(key)
                     .build();
             return s3Client.getObject(request);
         } catch (S3Exception e) {
+            // 回退逻辑：如果 key 以 FORMAL_PREFIX 开头但 404，尝试旧路径 patterns/
+            if (key.startsWith(FORMAL_PREFIX)) {
+                String fallbackKey = "patterns/" + key.substring(FORMAL_PREFIX.length());
+                try {
+                    software.amazon.awssdk.services.s3.model.GetObjectRequest fallbackRequest = software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(fallbackKey)
+                            .build();
+                    return s3Client.getObject(fallbackRequest);
+                } catch (S3Exception fallbackException) {
+                    System.err.println("下载图片失败（回退路径也失败）: " + fallbackException.getMessage());
+                    throw new IOException("下载图片失败: " + fallbackException.getMessage(), fallbackException);
+                }
+            }
             System.err.println("下载图片失败: " + e.getMessage());
             throw new IOException("下载图片失败: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 上传字节数组到 S3
+     */
+    public String uploadBytes(String key, byte[] bytes, String contentType) throws IOException {
+        try {
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(contentType)
+                    .build();
+            s3Client.putObject(request, RequestBody.fromBytes(bytes));
+            return baseUrl + "/" + key;
+        } catch (S3Exception e) {
+            throw new IOException("上传字节数组到 S3 失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 根据原图 key 构建水印图 key
+     */
+    public String toWatermarkedKey(String originalKey) {
+        if (originalKey.startsWith(FORMAL_PREFIX)) {
+            return WATERMARKED_PREFIX + originalKey.substring(FORMAL_PREFIX.length());
+        }
+        return WATERMARKED_PREFIX + originalKey;
+    }
+
+    /**
+     * 获取正式路径前缀
+     */
+    public String getFormalPrefix() {
+        return FORMAL_PREFIX;
     }
 
     public String normalizeImageSourceTypeValue(String sourceType, String imageUrl) {
@@ -491,7 +541,7 @@ public class ImageService {
     /**
      * 从URL中提取对象存储的key
      */
-    private String extractKeyFromUrl(String url) {
+    public String extractKeyFromUrl(String url) {
         String key = tryExtractInternalKey(url);
         if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("无法识别对象存储路径: " + url);
