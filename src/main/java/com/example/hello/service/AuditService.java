@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.hello.dto.AuditRequest;
 import com.example.hello.dto.BatchAuditRequest;
 import com.example.hello.dto.PatternRequest;
+import com.example.hello.dto.WatermarkResult;
 import com.example.hello.entity.Pattern;
 import com.example.hello.entity.PatternPending;
 import com.example.hello.entity.User;
@@ -33,6 +34,7 @@ public class AuditService {
     private final BlockchainAnchorService blockchainAnchorService;
     private final PatternCodeService patternCodeService;
     private final RedisCacheService redisCacheService;
+    private final WatermarkStorageService watermarkStorageService;
 
     public AuditService(PatternPendingRepository pendingRepository,
                         PatternRepository patternRepository,
@@ -41,7 +43,8 @@ public class AuditService {
                         PatternHashService patternHashService,
                         BlockchainAnchorService blockchainAnchorService,
                         PatternCodeService patternCodeService,
-                        RedisCacheService redisCacheService) {
+                        RedisCacheService redisCacheService,
+                        WatermarkStorageService watermarkStorageService) {
         this.pendingRepository = pendingRepository;
         this.patternRepository = patternRepository;
         this.userRepository = userRepository;
@@ -50,6 +53,7 @@ public class AuditService {
         this.blockchainAnchorService = blockchainAnchorService;
         this.patternCodeService = patternCodeService;
         this.redisCacheService = redisCacheService;
+        this.watermarkStorageService = watermarkStorageService;
     }
 
     /**
@@ -361,6 +365,17 @@ public class AuditService {
             pending.setImageUrl(newUrl);
             pending.setImageSourceType(sourceType.name());
             pendingRepository.save(pending);
+
+            // 嵌入水印并存储双版本
+            try {
+                WatermarkResult wmResult = watermarkStorageService.embedAndStore(
+                        newUrl, pattern.getPatternCode(), pending.getSubmitter().getId());
+                pattern.setImageUrl(wmResult.getOriginalUrl());
+                pattern.setWatermarkedUrl(wmResult.getWatermarkedUrl());
+            } catch (Exception e) {
+                // 水印失败不阻塞入库
+                System.err.println("水印嵌入失败，降级使用原图: " + e.getMessage());
+            }
         } catch (IOException e) {
             throw new RuntimeException("审核通过失败：处理正式图片失败: " + e.getMessage(), e);
         }
