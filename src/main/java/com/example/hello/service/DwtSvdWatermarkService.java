@@ -28,6 +28,7 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 /**
  * DWT-SVD 鲁棒水印嵌入服务（纯 Java 实现）。
  */
+@org.springframework.stereotype.Service
 public class DwtSvdWatermarkService {
 
     private static final int BLOCK_SIZE = 8;

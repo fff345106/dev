@@ -68,7 +68,8 @@ class AuditServiceReviewFlowTest {
                 patternHashService,
                 blockchainAnchorService,
                 patternCodeService,
-                redisCacheService);
+                redisCacheService,
+                null);
 
         when(pendingRepository.save(any(PatternPending.class))).thenAnswer(invocation -> invocation.getArgument(0));
         org.mockito.Mockito.lenient().when(imageService.resolveImageSourceType(any(), any())).thenAnswer(invocation -> {
