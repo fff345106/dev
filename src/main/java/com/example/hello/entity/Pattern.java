@@ -50,6 +50,9 @@ public class Pattern {
     @Column(name = "image_url")
     private String imageUrl;  // 纹样图片URL
 
+    @Column(name = "watermarked_url", length = 500)
+    private String watermarkedUrl;  // 水印图URL，前端展示用
+
     @Column(name = "image_source_type", length = 20)
     private String imageSourceType; // 图片来源: TEMP_UPLOAD/EXTERNAL/LIBRARY
 
@@ -120,6 +123,8 @@ public class Pattern {
     public void setPatternCode(String patternCode) { this.patternCode = patternCode; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getWatermarkedUrl() { return watermarkedUrl; }
+    public void setWatermarkedUrl(String watermarkedUrl) { this.watermarkedUrl = watermarkedUrl; }
     public String getImageSourceType() { return imageSourceType; }
     public void setImageSourceType(String imageSourceType) { this.imageSourceType = imageSourceType; }
     public String getStoryText() { return storyText; }
