@@ -7,6 +7,7 @@ public class PatternDetailResponse {
     private String title;
     private String patternCode;
     private String image;
+    private String watermarkedUrl;
     private String desc;
     private List<String> story;
 
@@ -41,6 +42,9 @@ public class PatternDetailResponse {
     public void setImage(String image) {
         this.image = image;
     }
+
+    public String getWatermarkedUrl() { return watermarkedUrl; }
+    public void setWatermarkedUrl(String watermarkedUrl) { this.watermarkedUrl = watermarkedUrl; }
 
     public String getDesc() {
         return desc;
