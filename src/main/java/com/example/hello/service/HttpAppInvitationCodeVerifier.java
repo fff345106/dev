@@ -6,7 +6,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 
@@ -19,7 +18,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class HttpAppInvitationCodeVerifier implements AppInvitationCodeVerifier {
 
     private static final String INVALID_CODE_MESSAGE = "邀请码或剪艺码无效";
-    private static final String USED_CODE_MESSAGE = "剪艺码已使用";
     private static final String UNAVAILABLE_MESSAGE = "剪艺码校验服务暂不可用";
 
     private final AppInvitationCodeProperties properties;
@@ -42,14 +40,11 @@ public class HttpAppInvitationCodeVerifier implements AppInvitationCodeVerifier 
         if (!hasText(properties.getVerifyConsumeEndpoint())) {
             return VerificationResult.unavailable("剪艺码校验服务配置不完整");
         }
-        if (!hasText(properties.getRequestCodeField())) {
-            return VerificationResult.unavailable("剪艺码校验服务配置不完整");
-        }
 
         try {
             HttpRequest request = buildRequest(code);
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            return mapResponse(response);
+            return mapResponse(response, code);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return VerificationResult.unavailable(UNAVAILABLE_MESSAGE);
@@ -58,16 +53,11 @@ public class HttpAppInvitationCodeVerifier implements AppInvitationCodeVerifier 
         }
     }
 
-    private HttpRequest buildRequest(String code) throws IOException {
-        String requestBody = objectMapper.createObjectNode()
-                .put(properties.getRequestCodeField(), code)
-                .toString();
-
+    private HttpRequest buildRequest(String code) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(properties.getVerifyConsumeEndpoint()))
                 .timeout(Duration.ofMillis(properties.getTimeoutMillis()))
-                .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody));
+                .GET();
 
         String authHeaderValue = resolveAuthHeaderValue();
         if (hasText(properties.getAuthHeaderName()) && hasText(authHeaderValue)) {
@@ -76,69 +66,37 @@ public class HttpAppInvitationCodeVerifier implements AppInvitationCodeVerifier 
         return builder.build();
     }
 
-    private VerificationResult mapResponse(HttpResponse<String> response) {
+    private VerificationResult mapResponse(HttpResponse<String> response, String userCode) {
         String message = extractMessage(response.body());
         int statusCode = response.statusCode();
         if (statusCode >= 200 && statusCode < 300) {
-            return resolveSuccessResponse(response.body(), message);
+            return resolveSuccessResponse(response.body(), message, userCode);
         }
-        if (statusCode == 409) {
-            return VerificationResult.used(defaultMessage(message, USED_CODE_MESSAGE));
+        if (statusCode == 401) {
+            return VerificationResult.unavailable(defaultMessage(message, "剪艺码校验服务鉴权失败"));
         }
-        if (statusCode == 400 || statusCode == 404 || statusCode == 422) {
-            return VerificationResult.invalid(defaultMessage(message, INVALID_CODE_MESSAGE));
+        if (statusCode == 403) {
+            return VerificationResult.unavailable(defaultMessage(message, UNAVAILABLE_MESSAGE));
         }
         return VerificationResult.unavailable(defaultMessage(message, UNAVAILABLE_MESSAGE));
     }
 
-    private VerificationResult resolveSuccessResponse(String body, String fallbackMessage) {
+    private VerificationResult resolveSuccessResponse(String body, String fallbackMessage, String userCode) {
         JsonNode root = readJson(body);
         if (root == null) {
+            return VerificationResult.invalid(INVALID_CODE_MESSAGE);
+        }
+
+        // API 返回格式: {"invite_code": "JY12345678", "partner_id": "...", "partner_name": "..."}
+        String inviteCode = firstText(root, "invite_code", "inviteCode");
+        if (!hasText(inviteCode)) {
+            return VerificationResult.unavailable("剪艺码校验服务返回数据异常");
+        }
+
+        if (inviteCode.equals(userCode)) {
             return VerificationResult.consumed();
         }
-
-        JsonNode payload = root.path("data").isObject() ? root.path("data") : root;
-        String message = firstText(payload, "message", "msg", "detail");
-        if (!hasText(message)) {
-            message = fallbackMessage;
-        }
-
-        Boolean used = firstBoolean(payload, "used", "alreadyUsed");
-        if (Boolean.TRUE.equals(used)) {
-            return VerificationResult.used(defaultMessage(message, USED_CODE_MESSAGE));
-        }
-
-        Boolean valid = firstBoolean(payload, "valid");
-        if (Boolean.FALSE.equals(valid)) {
-            return VerificationResult.invalid(defaultMessage(message, INVALID_CODE_MESSAGE));
-        }
-
-        Boolean canRegister = firstBoolean(payload, "can_register", "canRegister");
-        if (Boolean.FALSE.equals(canRegister)) {
-            return VerificationResult.used(defaultMessage(message, USED_CODE_MESSAGE));
-        }
-
-        Boolean consumed = firstBoolean(payload, "consumed");
-        if (Boolean.TRUE.equals(consumed) || Boolean.TRUE.equals(valid)) {
-            return VerificationResult.consumed();
-        }
-
-        String status = normalizeStatus(firstText(payload, "status", "result", "codeStatus"));
-        if (isUsedStatus(status)) {
-            return VerificationResult.used(defaultMessage(message, USED_CODE_MESSAGE));
-        }
-        if (isInvalidStatus(status)) {
-            return VerificationResult.invalid(defaultMessage(message, INVALID_CODE_MESSAGE));
-        }
-        if (isSuccessStatus(status)) {
-            return VerificationResult.consumed();
-        }
-
-        Boolean rootSuccess = firstBoolean(root, "success", "ok");
-        if (Boolean.FALSE.equals(rootSuccess)) {
-            return VerificationResult.unavailable(defaultMessage(message, UNAVAILABLE_MESSAGE));
-        }
-        return VerificationResult.consumed();
+        return VerificationResult.invalid(INVALID_CODE_MESSAGE);
     }
 
     private JsonNode readJson(String body) {
@@ -176,28 +134,6 @@ public class HttpAppInvitationCodeVerifier implements AppInvitationCodeVerifier 
         return null;
     }
 
-    private Boolean firstBoolean(JsonNode node, String... fieldNames) {
-        if (node == null || node.isMissingNode()) {
-            return null;
-        }
-        for (String fieldName : fieldNames) {
-            JsonNode valueNode = node.path(fieldName);
-            if (valueNode.isBoolean()) {
-                return valueNode.asBoolean();
-            }
-            if (valueNode.isTextual()) {
-                String normalized = valueNode.asText().trim().toLowerCase(Locale.ROOT);
-                if ("true".equals(normalized)) {
-                    return true;
-                }
-                if ("false".equals(normalized)) {
-                    return false;
-                }
-            }
-        }
-        return null;
-    }
-
     private String firstText(JsonNode node, String... fieldNames) {
         if (node == null || node.isMissingNode()) {
             return null;
@@ -222,30 +158,6 @@ public class HttpAppInvitationCodeVerifier implements AppInvitationCodeVerifier 
             return properties.getAuthToken().trim();
         }
         return properties.getAuthScheme().trim() + " " + properties.getAuthToken().trim();
-    }
-
-    private String normalizeStatus(String status) {
-        if (!hasText(status)) {
-            return null;
-        }
-        return status.trim()
-                .replace('-', '_')
-                .replace(' ', '_')
-                .toUpperCase(Locale.ROOT);
-    }
-
-    private boolean isSuccessStatus(String status) {
-        return "SUCCESS".equals(status) || "OK".equals(status) || "VALID".equals(status)
-                || "CONSUMED".equals(status) || "VERIFIED".equals(status);
-    }
-
-    private boolean isUsedStatus(String status) {
-        return "USED".equals(status) || "ALREADY_USED".equals(status);
-    }
-
-    private boolean isInvalidStatus(String status) {
-        return "INVALID".equals(status) || "NOT_FOUND".equals(status) || "NOT_EXISTS".equals(status)
-                || "EXPIRED".equals(status) || "REJECTED".equals(status);
     }
 
     private String defaultMessage(String message, String defaultMessage) {

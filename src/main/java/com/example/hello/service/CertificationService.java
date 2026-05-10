@@ -6,9 +6,6 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.hello.dto.EnterpriseAuthRequest;
-import com.example.hello.dto.MasterAuthRequest;
-import com.example.hello.dto.RealNameAuthRequest;
 import com.example.hello.entity.User;
 import com.example.hello.entity.UserCertification;
 import com.example.hello.enums.CertificationStatus;
@@ -32,12 +29,13 @@ public class CertificationService {
      * 提交实名认证
      */
     @Transactional
-    public UserCertification submitRealNameAuth(User user, RealNameAuthRequest request) {
+    public UserCertification submitRealNameAuth(User user, String realName, String idCardNumber,
+                                                String idCardFrontUrl, String idCardBackUrl) {
         UserCertification cert = findOrCreateCertification(user, CertificationType.REAL_NAME, "实名认证");
-        cert.setRealName(request.getRealName());
-        cert.setIdCardNumber(request.getIdCardNumber());
-        cert.setIdCardFrontUrl(request.getIdCardFrontUrl());
-        cert.setIdCardBackUrl(request.getIdCardBackUrl());
+        cert.setRealName(realName);
+        cert.setIdCardNumber(idCardNumber);
+        cert.setIdCardFrontUrl(idCardFrontUrl);
+        cert.setIdCardBackUrl(idCardBackUrl);
         syncUserCertificationStatus(user, CertificationStatus.PENDING);
         return certificationRepository.save(cert);
     }
@@ -46,19 +44,21 @@ public class CertificationService {
      * 提交企业认证
      */
     @Transactional
-    public UserCertification submitEnterpriseAuth(User user, EnterpriseAuthRequest request) {
+    public UserCertification submitEnterpriseAuth(User user, String businessLicenseUrl,
+                                                  String authorizationLetterUrl,
+                                                  String legalRepresentativeName,
+                                                  Boolean isLegalRepresentative) {
         // 非法人代表需提供授权委托书
-        if (!Boolean.TRUE.equals(request.getIsLegalRepresentative())
-                && (request.getAuthorizationLetterUrl() == null
-                    || request.getAuthorizationLetterUrl().isBlank())) {
+        if (!Boolean.TRUE.equals(isLegalRepresentative)
+                && (authorizationLetterUrl == null || authorizationLetterUrl.isBlank())) {
             throw new RuntimeException("非法人代表需提供授权委托书");
         }
 
         UserCertification cert = findOrCreateCertification(user, CertificationType.ENTERPRISE, "企业认证");
-        cert.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
-        cert.setAuthorizationLetterUrl(request.getAuthorizationLetterUrl());
-        cert.setLegalRepresentativeName(request.getLegalRepresentativeName());
-        cert.setIsLegalRepresentative(request.getIsLegalRepresentative());
+        cert.setBusinessLicenseUrl(businessLicenseUrl);
+        cert.setAuthorizationLetterUrl(authorizationLetterUrl);
+        cert.setLegalRepresentativeName(legalRepresentativeName);
+        cert.setIsLegalRepresentative(isLegalRepresentative);
         syncUserCertificationStatus(user, CertificationStatus.PENDING);
         return certificationRepository.save(cert);
     }
@@ -67,17 +67,17 @@ public class CertificationService {
      * 提交技艺认证
      */
     @Transactional
-    public UserCertification submitMasterAuth(User user, MasterAuthRequest request) {
+    public UserCertification submitMasterAuth(User user, String certificationUrl,
+                                              String representativeWorkUrl) {
         // 至少需要提供证书照片或代表作品之一
-        if ((request.getCertificationUrl() == null || request.getCertificationUrl().isBlank())
-                && (request.getRepresentativeWorkUrl() == null
-                    || request.getRepresentativeWorkUrl().isBlank())) {
+        if ((certificationUrl == null || certificationUrl.isBlank())
+                && (representativeWorkUrl == null || representativeWorkUrl.isBlank())) {
             throw new RuntimeException("技艺认证至少需要提供证书照片或代表作品之一");
         }
 
         UserCertification cert = findOrCreateCertification(user, CertificationType.MASTER, "技艺认证");
-        cert.setCertificationUrl(request.getCertificationUrl());
-        cert.setRepresentativeWorkUrl(request.getRepresentativeWorkUrl());
+        cert.setCertificationUrl(certificationUrl);
+        cert.setRepresentativeWorkUrl(representativeWorkUrl);
         syncUserCertificationStatus(user, CertificationStatus.PENDING);
         return certificationRepository.save(cert);
     }
@@ -147,6 +147,21 @@ public class CertificationService {
      */
     public List<UserCertification> getPendingCertifications() {
         return certificationRepository.findByStatus(CertificationStatus.PENDING);
+    }
+
+    /**
+     * 获取所有认证记录（管理员用）
+     */
+    public List<UserCertification> getAllCertifications() {
+        return certificationRepository.findAll();
+    }
+
+    /**
+     * 根据ID获取认证记录
+     */
+    public UserCertification getCertificationById(Long id) {
+        return certificationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("认证记录不存在"));
     }
 
     /**

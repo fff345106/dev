@@ -1,6 +1,7 @@
 package com.example.hello.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.example.hello.dto.RealNameAuthRequest;
 import com.example.hello.entity.User;
 import com.example.hello.entity.UserCertification;
 import com.example.hello.enums.CertificationStatus;
@@ -29,7 +31,9 @@ import com.example.hello.enums.UserRole;
 import com.example.hello.exception.GlobalExceptionHandler;
 import com.example.hello.repository.UserRepository;
 import com.example.hello.service.CertificationService;
+import com.example.hello.service.ImageService;
 import com.example.hello.util.JwtUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("null")
@@ -44,12 +48,18 @@ class CertificationControllerTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private ImageService imageService;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(
-                        new CertificationController(certificationService, jwtUtil, userRepository))
+                        new CertificationController(certificationService, jwtUtil, userRepository, imageService, objectMapper))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -64,27 +74,38 @@ class CertificationControllerTest {
         cert.setId(1L);
         cert.setStatus(CertificationStatus.PENDING);
 
+        RealNameAuthRequest authRequest = new RealNameAuthRequest();
+        authRequest.setRealName("张三");
+        authRequest.setIdCardNumber("110101199001011234");
+        authRequest.setIdCardFrontUrl("https://s3.example.com/temp/front.jpg");
+        authRequest.setIdCardBackUrl("https://s3.example.com/temp/back.jpg");
+
+        String jsonBody = """
+                {
+                    "realName": "张三",
+                    "idCardNumber": "110101199001011234",
+                    "idCardFrontUrl": "https://s3.example.com/temp/front.jpg",
+                    "idCardBackUrl": "https://s3.example.com/temp/back.jpg"
+                }
+                """;
+
         when(jwtUtil.extractUserId("valid-token")).thenReturn(userId);
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(certificationService.submitRealNameAuth(eq(user), any())).thenReturn(cert);
+        when(objectMapper.readValue(jsonBody, RealNameAuthRequest.class)).thenReturn(authRequest);
+        when(imageService.moveToIdentity(any(), anyLong(), any()))
+                .thenReturn("https://s3.example.com/Identity/1/idCardFront.jpg");
+        when(certificationService.submitRealNameAuth(eq(user), any(), any(), any(), any())).thenReturn(cert);
 
         mockMvc.perform(post("/api/certifications/real-name")
                         .header("Authorization", "Bearer valid-token")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                    "realName": "张三",
-                                    "idCardNumber": "110101199001011234",
-                                    "idCardFrontUrl": "https://s3.example.com/front.jpg",
-                                    "idCardBackUrl": "https://s3.example.com/back.jpg"
-                                }
-                                """))
+                        .content(jsonBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.certificationType").value("REAL_NAME"))
                 .andExpect(jsonPath("$.status").value("PENDING"));
 
-        verify(certificationService).submitRealNameAuth(eq(user), any());
+        verify(certificationService).submitRealNameAuth(eq(user), eq("张三"), eq("110101199001011234"), any(), any());
     }
 
     @Test
@@ -95,8 +116,8 @@ class CertificationControllerTest {
                                 {
                                     "realName": "张三",
                                     "idCardNumber": "110101199001011234",
-                                    "idCardFrontUrl": "https://s3.example.com/front.jpg",
-                                    "idCardBackUrl": "https://s3.example.com/back.jpg"
+                                    "idCardFrontUrl": "https://s3.example.com/temp/front.jpg",
+                                    "idCardBackUrl": "https://s3.example.com/temp/back.jpg"
                                 }
                                 """))
                 .andExpect(status().isUnauthorized())

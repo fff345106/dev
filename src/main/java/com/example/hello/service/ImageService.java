@@ -40,6 +40,7 @@ public class ImageService {
 
     private static final String TEMP_FOLDER = "temp/";
     private static final String AVATAR_FOLDER = "avatars/";
+    private static final String IDENTITY_FOLDER = "Identity/";
     private static final String FORMAL_PREFIX = "patterns/original/";
     private static final String WATERMARKED_PREFIX = "patterns/watermarked/";
     private static final long MAX_AVATAR_BYTES = 2L * 1024 * 1024; // 2MB
@@ -141,6 +142,81 @@ public class ImageService {
             if (tempFile.exists()) {
                 tempFile.delete();
             }
+        }
+    }
+
+    /**
+     * 上传认证图片到 Identity 目录
+     * @param file 图片文件
+     * @param userId 用户ID
+     * @param imageType 图片类型（如 idCardFront、idCardBack、businessLicense 等）
+     * @return 图片URL
+     */
+    public String uploadIdentityImage(MultipartFile file, Long userId, String imageType) throws IOException {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("上传文件不能为空");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("仅支持图片文件");
+        }
+
+        String extension = resolveUploadExtension(file.getOriginalFilename(), contentType);
+        String key = IDENTITY_FOLDER + userId + "/" + imageType + extension;
+
+        File tempFile = File.createTempFile("identity_", extension);
+        Objects.requireNonNull(tempFile, "创建临时文件失败");
+        file.transferTo(tempFile);
+
+        try {
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(contentType)
+                    .build();
+            s3Client.putObject(request, RequestBody.fromFile(tempFile));
+            return baseUrl + "/" + key;
+        } catch (S3Exception e) {
+            throw new IOException("认证图片上传失败: " + e.getMessage(), e);
+        } finally {
+            if (tempFile.exists()) {
+                tempFile.delete();
+            }
+        }
+    }
+
+    /**
+     * 将已有的临时图片移动到 Identity 目录
+     * @param tempUrl 临时图片URL
+     * @param userId 用户ID
+     * @param imageType 图片类型
+     * @return 新的图片URL
+     */
+    public String moveToIdentity(String tempUrl, Long userId, String imageType) throws IOException {
+        if (tempUrl == null || tempUrl.isEmpty()) {
+            return null;
+        }
+
+        try {
+            String sourceKey = extractKeyFromUrl(tempUrl);
+            String extension = getFileExtension(sourceKey);
+            String newKey = IDENTITY_FOLDER + userId + "/" + imageType + extension;
+
+            copyObject(sourceKey, newKey);
+
+            // 删除源文件（仅当源文件在 temp 目录时）
+            if (sourceKey.startsWith(TEMP_FOLDER)) {
+                DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(sourceKey)
+                        .build();
+                s3Client.deleteObject(deleteRequest);
+            }
+
+            return baseUrl + "/" + newKey;
+        } catch (S3Exception e) {
+            throw new IOException("移动认证图片失败: " + e.getMessage(), e);
         }
     }
 

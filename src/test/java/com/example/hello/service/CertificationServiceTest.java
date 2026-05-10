@@ -8,19 +8,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.example.hello.dto.EnterpriseAuthRequest;
-import com.example.hello.dto.MasterAuthRequest;
-import com.example.hello.dto.RealNameAuthRequest;
 import com.example.hello.entity.User;
 import com.example.hello.entity.UserCertification;
 import com.example.hello.enums.CertificationStatus;
@@ -54,12 +49,6 @@ class CertificationServiceTest {
 
     @Test
     void submitRealNameAuth_createsNewCertification() {
-        RealNameAuthRequest request = new RealNameAuthRequest();
-        request.setRealName("张三");
-        request.setIdCardNumber("110101199001011234");
-        request.setIdCardFrontUrl("https://example.com/front.jpg");
-        request.setIdCardBackUrl("https://example.com/back.jpg");
-
         when(certificationRepository.findByUserAndCertificationType(user, CertificationType.REAL_NAME))
                 .thenReturn(Optional.empty());
         when(certificationRepository.save(any(UserCertification.class)))
@@ -69,7 +58,9 @@ class CertificationServiceTest {
                     return cert;
                 });
 
-        UserCertification result = certificationService.submitRealNameAuth(user, request);
+        UserCertification result = certificationService.submitRealNameAuth(
+                user, "张三", "110101199001011234",
+                "https://example.com/front.jpg", "https://example.com/back.jpg");
 
         assertNotNull(result);
         assertEquals(CertificationType.REAL_NAME, result.getCertificationType());
@@ -79,20 +70,12 @@ class CertificationServiceTest {
         assertEquals("https://example.com/front.jpg", result.getIdCardFrontUrl());
         assertEquals("https://example.com/back.jpg", result.getIdCardBackUrl());
         verify(certificationRepository).save(any(UserCertification.class));
-        // 验证用户的认证状态被同步为 PENDING
         verify(userRepository).save(user);
         assertEquals(CertificationStatus.PENDING, user.getCertificationStatus());
     }
 
     @Test
     void submitRealNameAuth_shouldUpdateExistingRejectedCert() {
-        RealNameAuthRequest request = new RealNameAuthRequest();
-        request.setRealName("张三");
-        request.setIdCardNumber("110101199001011234");
-        request.setIdCardFrontUrl("https://example.com/front.jpg");
-        request.setIdCardBackUrl("https://example.com/back.jpg");
-
-        // 已有一条被拒绝的认证记录
         UserCertification existingCert = new UserCertification(user, CertificationType.REAL_NAME);
         existingCert.setId(10L);
         existingCert.setStatus(CertificationStatus.REJECTED);
@@ -104,14 +87,15 @@ class CertificationServiceTest {
         when(certificationRepository.save(any(UserCertification.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        UserCertification result = certificationService.submitRealNameAuth(user, request);
+        UserCertification result = certificationService.submitRealNameAuth(
+                user, "张三", "110101199001011234",
+                "https://example.com/front.jpg", "https://example.com/back.jpg");
 
         assertNotNull(result);
         assertEquals(10L, result.getId(), "应更新已有记录而非创建新记录");
         assertEquals(CertificationStatus.PENDING, result.getStatus(), "重新提交后状态应为 PENDING");
         assertEquals("张三", result.getRealName());
         assertEquals("110101199001011234", result.getIdCardNumber());
-        // 被拒绝的记录重新提交时应清除审核信息
         assertEquals(null, result.getRejectReason(), "应清除拒绝原因");
         assertEquals(null, result.getAuditorId(), "应清除审核人");
         assertEquals(null, result.getAuditTime(), "应清除审核时间");
@@ -120,13 +104,6 @@ class CertificationServiceTest {
 
     @Test
     void submitRealNameAuth_shouldUpdateExistingPendingCert() {
-        RealNameAuthRequest request = new RealNameAuthRequest();
-        request.setRealName("李四");
-        request.setIdCardNumber("110101199002021234");
-        request.setIdCardFrontUrl("https://example.com/front2.jpg");
-        request.setIdCardBackUrl("https://example.com/back2.jpg");
-
-        // 已有一条待审核的认证记录
         UserCertification existingCert = new UserCertification(user, CertificationType.REAL_NAME);
         existingCert.setId(11L);
         existingCert.setStatus(CertificationStatus.PENDING);
@@ -137,7 +114,9 @@ class CertificationServiceTest {
         when(certificationRepository.save(any(UserCertification.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        UserCertification result = certificationService.submitRealNameAuth(user, request);
+        UserCertification result = certificationService.submitRealNameAuth(
+                user, "李四", "110101199002021234",
+                "https://example.com/front2.jpg", "https://example.com/back2.jpg");
 
         assertNotNull(result);
         assertEquals(11L, result.getId(), "应更新已有记录");
@@ -147,11 +126,6 @@ class CertificationServiceTest {
 
     @Test
     void submitEnterpriseAuth_shouldUpdateExistingRejectedCert() {
-        EnterpriseAuthRequest request = new EnterpriseAuthRequest();
-        request.setBusinessLicenseUrl("https://example.com/license2.jpg");
-        request.setLegalRepresentativeName("王五");
-        request.setIsLegalRepresentative(true);
-
         UserCertification existingCert = new UserCertification(user, CertificationType.ENTERPRISE);
         existingCert.setId(20L);
         existingCert.setStatus(CertificationStatus.REJECTED);
@@ -161,7 +135,8 @@ class CertificationServiceTest {
         when(certificationRepository.save(any(UserCertification.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        UserCertification result = certificationService.submitEnterpriseAuth(user, request);
+        UserCertification result = certificationService.submitEnterpriseAuth(
+                user, "https://example.com/license2.jpg", null, "王五", true);
 
         assertEquals(20L, result.getId());
         assertEquals(CertificationStatus.PENDING, result.getStatus());
@@ -171,9 +146,6 @@ class CertificationServiceTest {
 
     @Test
     void submitMasterAuth_shouldUpdateExistingRejectedCert() {
-        MasterAuthRequest request = new MasterAuthRequest();
-        request.setCertificationUrl("https://example.com/cert2.jpg");
-
         UserCertification existingCert = new UserCertification(user, CertificationType.MASTER);
         existingCert.setId(30L);
         existingCert.setStatus(CertificationStatus.REJECTED);
@@ -183,7 +155,8 @@ class CertificationServiceTest {
         when(certificationRepository.save(any(UserCertification.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        UserCertification result = certificationService.submitMasterAuth(user, request);
+        UserCertification result = certificationService.submitMasterAuth(
+                user, "https://example.com/cert2.jpg", null);
 
         assertEquals(30L, result.getId());
         assertEquals(CertificationStatus.PENDING, result.getStatus());
@@ -193,12 +166,6 @@ class CertificationServiceTest {
 
     @Test
     void submitRealNameAuth_throwsWhenAlreadyApproved() {
-        RealNameAuthRequest request = new RealNameAuthRequest();
-        request.setRealName("张三");
-        request.setIdCardNumber("110101199001011234");
-        request.setIdCardFrontUrl("https://example.com/front.jpg");
-        request.setIdCardBackUrl("https://example.com/back.jpg");
-
         UserCertification existingCert = new UserCertification(user, CertificationType.REAL_NAME);
         existingCert.setStatus(CertificationStatus.APPROVED);
 
@@ -206,18 +173,15 @@ class CertificationServiceTest {
                 .thenReturn(Optional.of(existingCert));
 
         RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> certificationService.submitRealNameAuth(user, request));
+                () -> certificationService.submitRealNameAuth(
+                        user, "张三", "110101199001011234",
+                        "https://example.com/front.jpg", "https://example.com/back.jpg"));
         assertEquals("该用户已通过实名认证，无需重复提交", ex.getMessage());
         verify(certificationRepository, never()).save(any());
     }
 
     @Test
     void submitEnterpriseAuth_createsNewCertification() {
-        EnterpriseAuthRequest request = new EnterpriseAuthRequest();
-        request.setBusinessLicenseUrl("https://example.com/license.jpg");
-        request.setLegalRepresentativeName("李四");
-        request.setIsLegalRepresentative(true);
-
         when(certificationRepository.findByUserAndCertificationType(user, CertificationType.ENTERPRISE))
                 .thenReturn(Optional.empty());
         when(certificationRepository.save(any(UserCertification.class)))
@@ -227,7 +191,8 @@ class CertificationServiceTest {
                     return cert;
                 });
 
-        UserCertification result = certificationService.submitEnterpriseAuth(user, request);
+        UserCertification result = certificationService.submitEnterpriseAuth(
+                user, "https://example.com/license.jpg", null, "李四", true);
 
         assertNotNull(result);
         assertEquals(CertificationType.ENTERPRISE, result.getCertificationType());
@@ -240,24 +205,15 @@ class CertificationServiceTest {
 
     @Test
     void submitEnterpriseAuth_requiresAuthorizationLetterWhenNotLegalRep() {
-        EnterpriseAuthRequest request = new EnterpriseAuthRequest();
-        request.setBusinessLicenseUrl("https://example.com/license.jpg");
-        request.setLegalRepresentativeName("李四");
-        request.setIsLegalRepresentative(false);
-        // authorizationLetterUrl is null
-
         RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> certificationService.submitEnterpriseAuth(user, request));
+                () -> certificationService.submitEnterpriseAuth(
+                        user, "https://example.com/license.jpg", null, "李四", false));
         assertEquals("非法人代表需提供授权委托书", ex.getMessage());
         verify(certificationRepository, never()).save(any());
     }
 
     @Test
     void submitMasterAuth_createsNewCertification() {
-        MasterAuthRequest request = new MasterAuthRequest();
-        request.setCertificationUrl("https://example.com/cert.jpg");
-        request.setRepresentativeWorkUrl("https://example.com/work.jpg");
-
         when(certificationRepository.findByUserAndCertificationType(user, CertificationType.MASTER))
                 .thenReturn(Optional.empty());
         when(certificationRepository.save(any(UserCertification.class)))
@@ -267,7 +223,8 @@ class CertificationServiceTest {
                     return cert;
                 });
 
-        UserCertification result = certificationService.submitMasterAuth(user, request);
+        UserCertification result = certificationService.submitMasterAuth(
+                user, "https://example.com/cert.jpg", "https://example.com/work.jpg");
 
         assertNotNull(result);
         assertEquals(CertificationType.MASTER, result.getCertificationType());
@@ -279,11 +236,8 @@ class CertificationServiceTest {
 
     @Test
     void submitMasterAuth_requiresAtLeastOneMaterial() {
-        MasterAuthRequest request = new MasterAuthRequest();
-        // Both certificationUrl and representativeWorkUrl are null
-
         RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> certificationService.submitMasterAuth(user, request));
+                () -> certificationService.submitMasterAuth(user, null, null));
         assertEquals("技艺认证至少需要提供证书照片或代表作品之一", ex.getMessage());
         verify(certificationRepository, never()).save(any());
     }
@@ -304,10 +258,8 @@ class CertificationServiceTest {
         assertEquals(CertificationStatus.APPROVED, result.getStatus());
         assertEquals(2L, result.getAuditorId());
         assertNotNull(result.getAuditTime());
-        // Real-name cert approval should set realNameVerified = true
         assertEquals(true, result.getRealNameVerified());
         verify(certificationRepository).save(cert);
-        // 验证用户的认证状态被同步为 APPROVED
         assertEquals(CertificationStatus.APPROVED, user.getCertificationStatus());
     }
 
@@ -329,7 +281,6 @@ class CertificationServiceTest {
         assertEquals("材料不清晰", result.getRejectReason());
         assertNotNull(result.getAuditTime());
         verify(certificationRepository).save(cert);
-        // 验证用户的认证状态被同步为 REJECTED
         assertEquals(CertificationStatus.REJECTED, user.getCertificationStatus());
     }
 
