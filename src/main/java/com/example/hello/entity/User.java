@@ -2,6 +2,7 @@ package com.example.hello.entity;
 
 import java.time.LocalDateTime;
 
+import com.example.hello.enums.CertificationStatus;
 import com.example.hello.enums.UserRole;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -32,11 +33,18 @@ public class User {
     private String password;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private UserRole role = UserRole.USER;
 
     @Column(name = "avatar_url")
     private String avatarUrl;
+
+    /**
+     * 认证状态（实名/企业/技艺），由 CertificationService 同步更新
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "certification_status", length = 20)
+    private CertificationStatus certificationStatus;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -72,4 +80,6 @@ public class User {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+    public CertificationStatus getCertificationStatus() { return certificationStatus; }
+    public void setCertificationStatus(CertificationStatus certificationStatus) { this.certificationStatus = certificationStatus; }
 }

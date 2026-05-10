@@ -38,6 +38,7 @@ public class CertificationService {
         cert.setIdCardNumber(request.getIdCardNumber());
         cert.setIdCardFrontUrl(request.getIdCardFrontUrl());
         cert.setIdCardBackUrl(request.getIdCardBackUrl());
+        syncUserCertificationStatus(user, CertificationStatus.PENDING);
         return certificationRepository.save(cert);
     }
 
@@ -58,6 +59,7 @@ public class CertificationService {
         cert.setAuthorizationLetterUrl(request.getAuthorizationLetterUrl());
         cert.setLegalRepresentativeName(request.getLegalRepresentativeName());
         cert.setIsLegalRepresentative(request.getIsLegalRepresentative());
+        syncUserCertificationStatus(user, CertificationStatus.PENDING);
         return certificationRepository.save(cert);
     }
 
@@ -76,6 +78,7 @@ public class CertificationService {
         UserCertification cert = findOrCreateCertification(user, CertificationType.MASTER, "技艺认证");
         cert.setCertificationUrl(request.getCertificationUrl());
         cert.setRepresentativeWorkUrl(request.getRepresentativeWorkUrl());
+        syncUserCertificationStatus(user, CertificationStatus.PENDING);
         return certificationRepository.save(cert);
     }
 
@@ -103,6 +106,7 @@ public class CertificationService {
             cert.setRealNameVerified(true);
         }
 
+        syncUserCertificationStatus(cert.getUser(), CertificationStatus.APPROVED);
         return certificationRepository.save(cert);
     }
 
@@ -127,6 +131,7 @@ public class CertificationService {
         cert.setAuditTime(LocalDateTime.now());
         cert.setRejectReason(rejectReason);
 
+        syncUserCertificationStatus(cert.getUser(), CertificationStatus.REJECTED);
         return certificationRepository.save(cert);
     }
 
@@ -142,6 +147,14 @@ public class CertificationService {
      */
     public List<UserCertification> getPendingCertifications() {
         return certificationRepository.findByStatus(CertificationStatus.PENDING);
+    }
+
+    /**
+     * 同步用户的认证状态到 User 实体
+     */
+    private void syncUserCertificationStatus(User user, CertificationStatus status) {
+        user.setCertificationStatus(status);
+        userRepository.save(user);
     }
 
     /**

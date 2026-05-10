@@ -79,6 +79,9 @@ class CertificationServiceTest {
         assertEquals("https://example.com/front.jpg", result.getIdCardFrontUrl());
         assertEquals("https://example.com/back.jpg", result.getIdCardBackUrl());
         verify(certificationRepository).save(any(UserCertification.class));
+        // 验证用户的认证状态被同步为 PENDING
+        verify(userRepository).save(user);
+        assertEquals(CertificationStatus.PENDING, user.getCertificationStatus());
     }
 
     @Test
@@ -304,6 +307,8 @@ class CertificationServiceTest {
         // Real-name cert approval should set realNameVerified = true
         assertEquals(true, result.getRealNameVerified());
         verify(certificationRepository).save(cert);
+        // 验证用户的认证状态被同步为 APPROVED
+        assertEquals(CertificationStatus.APPROVED, user.getCertificationStatus());
     }
 
     @Test
@@ -324,6 +329,8 @@ class CertificationServiceTest {
         assertEquals("材料不清晰", result.getRejectReason());
         assertNotNull(result.getAuditTime());
         verify(certificationRepository).save(cert);
+        // 验证用户的认证状态被同步为 REJECTED
+        assertEquals(CertificationStatus.REJECTED, user.getCertificationStatus());
     }
 
     @Test
