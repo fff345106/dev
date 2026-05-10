@@ -33,9 +33,7 @@ public class CertificationService {
      */
     @Transactional
     public UserCertification submitRealNameAuth(User user, RealNameAuthRequest request) {
-        checkNotAlreadyApproved(user, CertificationType.REAL_NAME, "实名认证");
-
-        UserCertification cert = new UserCertification(user, CertificationType.REAL_NAME);
+        UserCertification cert = findOrCreateCertification(user, CertificationType.REAL_NAME, "实名认证");
         cert.setRealName(request.getRealName());
         cert.setIdCardNumber(request.getIdCardNumber());
         cert.setIdCardFrontUrl(request.getIdCardFrontUrl());
@@ -48,8 +46,6 @@ public class CertificationService {
      */
     @Transactional
     public UserCertification submitEnterpriseAuth(User user, EnterpriseAuthRequest request) {
-        checkNotAlreadyApproved(user, CertificationType.ENTERPRISE, "企业认证");
-
         // 非法人代表需提供授权委托书
         if (!Boolean.TRUE.equals(request.getIsLegalRepresentative())
                 && (request.getAuthorizationLetterUrl() == null
@@ -57,7 +53,7 @@ public class CertificationService {
             throw new RuntimeException("非法人代表需提供授权委托书");
         }
 
-        UserCertification cert = new UserCertification(user, CertificationType.ENTERPRISE);
+        UserCertification cert = findOrCreateCertification(user, CertificationType.ENTERPRISE, "企业认证");
         cert.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
         cert.setAuthorizationLetterUrl(request.getAuthorizationLetterUrl());
         cert.setLegalRepresentativeName(request.getLegalRepresentativeName());
@@ -70,8 +66,6 @@ public class CertificationService {
      */
     @Transactional
     public UserCertification submitMasterAuth(User user, MasterAuthRequest request) {
-        checkNotAlreadyApproved(user, CertificationType.MASTER, "技艺认证");
-
         // 至少需要提供证书照片或代表作品之一
         if ((request.getCertificationUrl() == null || request.getCertificationUrl().isBlank())
                 && (request.getRepresentativeWorkUrl() == null
@@ -79,7 +73,7 @@ public class CertificationService {
             throw new RuntimeException("技艺认证至少需要提供证书照片或代表作品之一");
         }
 
-        UserCertification cert = new UserCertification(user, CertificationType.MASTER);
+        UserCertification cert = findOrCreateCertification(user, CertificationType.MASTER, "技艺认证");
         cert.setCertificationUrl(request.getCertificationUrl());
         cert.setRepresentativeWorkUrl(request.getRepresentativeWorkUrl());
         return certificationRepository.save(cert);
@@ -151,14 +145,22 @@ public class CertificationService {
     }
 
     /**
-     * 检查用户是否已通过某类认证，若已通过则抛出异常
+     * 查找或创建认证记录。
+     * 若已通过则拒绝重复提交；若为 PENDING/REJECTED 则复用已有记录并重置状态。
      */
-    private void checkNotAlreadyApproved(User user, CertificationType type, String certName) {
-        certificationRepository.findByUserAndCertificationType(user, type)
-                .ifPresent(existing -> {
+    private UserCertification findOrCreateCertification(User user, CertificationType type, String certName) {
+        return certificationRepository.findByUserAndCertificationType(user, type)
+                .map(existing -> {
                     if (existing.getStatus() == CertificationStatus.APPROVED) {
                         throw new RuntimeException("该用户已通过" + certName + "，无需重复提交");
                     }
-                });
+                    // 复用已有记录，重置为待审核状态
+                    existing.setStatus(CertificationStatus.PENDING);
+                    existing.setRejectReason(null);
+                    existing.setAuditorId(null);
+                    existing.setAuditTime(null);
+                    return existing;
+                })
+                .orElseGet(() -> new UserCertification(user, type));
     }
 }
