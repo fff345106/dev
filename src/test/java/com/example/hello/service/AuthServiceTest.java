@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.example.hello.config.LoginAttemptCache;
 import com.example.hello.dto.AuthResponse;
 import com.example.hello.dto.ForgotPasswordRequest;
 import com.example.hello.dto.LoginRequest;
@@ -50,12 +51,15 @@ class AuthServiceTest {
     @Mock
     private AppRegistrationCallbackService appRegistrationCallbackService;
 
+    @Mock
+    private LoginAttemptCache loginAttemptCache;
+
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         authService = new AuthService(userRepository, passwordEncoder, jwtUtil, invitationCodeService,
-                appRegistrationCallbackService);
+                appRegistrationCallbackService, loginAttemptCache);
     }
 
     @Test
@@ -293,11 +297,13 @@ class AuthServiceTest {
 
         User user = new User("alice", "encoded-password", UserRole.USER);
         user.setId(1L);
+        when(loginAttemptCache.isRateLimited("127.0.0.1")).thenReturn(false);
         when(userRepository.findByUsername("alice")).thenReturn(java.util.Optional.of(user));
+        when(loginAttemptCache.getCachedMatch("alice", "password123")).thenReturn(null);
         when(passwordEncoder.matches("password123", "encoded-password")).thenReturn(true);
         when(jwtUtil.generateToken(1L, "alice", "USER")).thenReturn("jwt-token-abc");
 
-        AuthResponse response = authService.login(request);
+        AuthResponse response = authService.login(request, "127.0.0.1");
 
         assertEquals("jwt-token-abc", response.getToken());
         assertEquals("登录成功", response.getMessage());
@@ -311,11 +317,13 @@ class AuthServiceTest {
 
         User user = new User("admin", "encoded", UserRole.SUPER_ADMIN);
         user.setId(42L);
+        when(loginAttemptCache.isRateLimited("127.0.0.1")).thenReturn(false);
         when(userRepository.findByUsername("admin")).thenReturn(java.util.Optional.of(user));
+        when(loginAttemptCache.getCachedMatch("admin", "admin123")).thenReturn(null);
         when(passwordEncoder.matches("admin123", "encoded")).thenReturn(true);
         when(jwtUtil.generateToken(42L, "admin", "SUPER_ADMIN")).thenReturn("token");
 
-        authService.login(request);
+        authService.login(request, "127.0.0.1");
 
         verify(jwtUtil).generateToken(42L, "admin", "SUPER_ADMIN");
     }
@@ -326,9 +334,10 @@ class AuthServiceTest {
         request.setUsername("nobody");
         request.setPassword("password123");
 
+        when(loginAttemptCache.isRateLimited("127.0.0.1")).thenReturn(false);
         when(userRepository.findByUsername("nobody")).thenReturn(java.util.Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.login(request));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.login(request, "127.0.0.1"));
 
         assertEquals("用户名或密码错误", ex.getMessage());
         verify(jwtUtil, never()).generateToken(any(), any(), any());
@@ -342,10 +351,12 @@ class AuthServiceTest {
 
         User user = new User("alice", "encoded-password", UserRole.USER);
         user.setId(1L);
+        when(loginAttemptCache.isRateLimited("127.0.0.1")).thenReturn(false);
         when(userRepository.findByUsername("alice")).thenReturn(java.util.Optional.of(user));
+        when(loginAttemptCache.getCachedMatch("alice", "wrongpass")).thenReturn(null);
         when(passwordEncoder.matches("wrongpass", "encoded-password")).thenReturn(false);
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.login(request));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> authService.login(request, "127.0.0.1"));
 
         // 与用户不存在时使用相同错误信息，防止用户枚举攻击
         assertEquals("用户名或密码错误", ex.getMessage());

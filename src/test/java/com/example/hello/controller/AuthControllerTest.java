@@ -184,7 +184,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("有效的登录请求应返回 200 和 JWT Token")
         void shouldReturn200WithTokenWhenValid() throws Exception {
-            when(authService.login(any(LoginRequest.class)))
+            when(authService.login(any(LoginRequest.class), any(String.class)))
                     .thenReturn(new AuthResponse("jwt-token-abc", "登录成功"));
 
             mockMvc.perform(post("/api/auth/login")
@@ -199,7 +199,7 @@ class AuthControllerTest {
                     .andExpect(jsonPath("$.token").value("jwt-token-abc"))
                     .andExpect(jsonPath("$.message").value("登录成功"));
 
-            verify(authService).login(any(LoginRequest.class));
+            verify(authService).login(any(LoginRequest.class), any(String.class));
         }
 
         @Test
@@ -239,7 +239,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("凭证错误时应返回 400")
         void shouldReturn400WhenCredentialsWrong() throws Exception {
-            when(authService.login(any(LoginRequest.class)))
+            when(authService.login(any(LoginRequest.class), any(String.class)))
                     .thenThrow(new RuntimeException("用户名或密码错误"));
 
             mockMvc.perform(post("/api/auth/login")

@@ -1,5 +1,6 @@
 package com.example.hello.service;
 
+import com.example.hello.config.LoginAttemptCache;
 import com.example.hello.dto.AuthResponse;
 import com.example.hello.dto.ForgotPasswordRequest;
 import com.example.hello.dto.LoginRequest;
@@ -21,15 +22,18 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final InvitationCodeService invitationCodeService;
     private final AppRegistrationCallbackService appRegistrationCallbackService;
+    private final LoginAttemptCache loginAttemptCache;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil,
             InvitationCodeService invitationCodeService,
-            AppRegistrationCallbackService appRegistrationCallbackService) {
+            AppRegistrationCallbackService appRegistrationCallbackService,
+            LoginAttemptCache loginAttemptCache) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.invitationCodeService = invitationCodeService;
         this.appRegistrationCallbackService = appRegistrationCallbackService;
+        this.loginAttemptCache = loginAttemptCache;
     }
 
     @Transactional
@@ -77,14 +81,42 @@ public class AuthService {
         return new AuthResponse(null, "注册成功");
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request, String clientIp) {
+        // 1. 速率限制检查
+        if (loginAttemptCache.isRateLimited(clientIp)) {
+            throw new RuntimeException("登录尝试过于频繁，请 " + loginAttemptCache.getWindowSeconds() + " 秒后再试");
+        }
+
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("用户名或密码错误"));
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                .orElseThrow(() -> {
+                    loginAttemptCache.recordAttempt(clientIp);
+                    return new RuntimeException("用户名或密码错误");
+                });
+
+        // 2. 先查缓存，命中则跳过 bcrypt
+        Boolean cachedMatch = loginAttemptCache.getCachedMatch(request.getUsername(), request.getPassword());
+        boolean matches;
+        if (cachedMatch != null) {
+            matches = cachedMatch;
+        } else {
+            matches = passwordEncoder.matches(request.getPassword(), user.getPassword());
+            loginAttemptCache.cacheMatchResult(request.getUsername(), request.getPassword(), matches);
+        }
+
+        if (!matches) {
+            loginAttemptCache.recordAttempt(clientIp);
             throw new RuntimeException("用户名或密码错误");
         }
+
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole().name());
         return new AuthResponse(token, "登录成功");
+    }
+
+    /**
+     * 获取限流窗口秒数（供 Controller 使用）
+     */
+    public int getLoginWindowSeconds() {
+        return loginAttemptCache.getWindowSeconds();
     }
 
     @Transactional

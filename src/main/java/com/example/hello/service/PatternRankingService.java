@@ -1,5 +1,6 @@
 package com.example.hello.service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,18 +12,34 @@ import com.example.hello.dto.PatternRankingResponse;
 import com.example.hello.entity.Pattern;
 import com.example.hello.repository.PatternRepository;
 import com.example.hello.repository.UserRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 @Service
 public class PatternRankingService {
+    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
+
     private final PatternRepository patternRepository;
     private final UserRepository userRepository;
+    private final RedisCacheService redisCacheService;
 
-    public PatternRankingService(PatternRepository patternRepository, UserRepository userRepository) {
+    public PatternRankingService(PatternRepository patternRepository, UserRepository userRepository,
+                                  RedisCacheService redisCacheService) {
         this.patternRepository = patternRepository;
         this.userRepository = userRepository;
+        this.redisCacheService = redisCacheService;
     }
 
     public List<PatternRankingResponse> getRanking(String period, Integer limit, String category) {
+        // 构建缓存键
+        String cacheKey = "ranking:" + (period != null ? period : "week") + ":"
+                + (limit != null ? limit : 50) + ":"
+                + (category != null ? category : "all");
+
+        // 尝试从缓存获取
+        List<PatternRankingResponse> cached = redisCacheService.get(cacheKey, new TypeReference<>() {});
+        if (cached != null) {
+            return cached;
+        }
         // 计算时间范围
         LocalDateTime since;
         if ("month".equalsIgnoreCase(period)) {
@@ -78,6 +95,9 @@ public class PatternRankingService {
 
             results.add(item);
         }
+
+        // 写入缓存
+        redisCacheService.put(cacheKey, results, CACHE_TTL);
 
         return results;
     }
