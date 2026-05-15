@@ -17,9 +17,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.hello.dto.PatternRankingResponse;
 import com.example.hello.dto.PatternRequest;
 import com.example.hello.entity.Pattern;
 import com.example.hello.enums.UserRole;
+import com.example.hello.service.PatternRankingService;
 import com.example.hello.service.PatternService;
 import com.example.hello.util.JwtUtil;
 
@@ -31,10 +33,12 @@ import org.springframework.lang.NonNull;
 @RequestMapping("/api/patterns")
 public class PatternController {
     private final PatternService patternService;
+    private final PatternRankingService patternRankingService;
     private final JwtUtil jwtUtil;
 
-    public PatternController(PatternService patternService, JwtUtil jwtUtil) {
+    public PatternController(PatternService patternService, PatternRankingService patternRankingService, JwtUtil jwtUtil) {
         this.patternService = patternService;
+        this.patternRankingService = patternRankingService;
         this.jwtUtil = jwtUtil;
     }
 
@@ -96,6 +100,22 @@ public class PatternController {
         UserRole role = checkPermission(token);
         patternService.batchDelete(ids, role);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 获取热门纹样排行
+     */
+    @GetMapping("/ranking")
+    public ResponseEntity<?> getRanking(
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String category) {
+        try {
+            java.util.List<PatternRankingResponse> ranking = patternRankingService.getRanking(period, limit, category);
+            return ResponseEntity.ok(ranking);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
     }
 
     private UserRole checkPermission(String token) {

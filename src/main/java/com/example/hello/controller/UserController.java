@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.hello.dto.UpdateUsernameRequest;
 import com.example.hello.entity.User;
 import com.example.hello.enums.UserRole;
+import com.example.hello.service.FeedService;
 import com.example.hello.service.InvitationCodeService;
 import com.example.hello.service.UserService;
 import com.example.hello.util.JwtUtil;
@@ -33,11 +34,13 @@ public class UserController {
     private final UserService userService;
     private final JwtUtil jwtUtil;
     private final InvitationCodeService invitationCodeService;
+    private final FeedService feedService;
 
-    public UserController(UserService userService, JwtUtil jwtUtil, InvitationCodeService invitationCodeService) {
+    public UserController(UserService userService, JwtUtil jwtUtil, InvitationCodeService invitationCodeService, FeedService feedService) {
         this.userService = userService;
         this.jwtUtil = jwtUtil;
         this.invitationCodeService = invitationCodeService;
+        this.feedService = feedService;
     }
 
     /**
@@ -199,6 +202,53 @@ public class UserController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    /**
+     * 关注用户
+     */
+    @PostMapping("/{id:\\d+}/follow")
+    public ResponseEntity<?> followUser(
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            if (token == null || token.isEmpty()) {
+                return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
+            }
+            Long userId = getUserIdFromToken(token);
+            feedService.follow(userId, id);
+            return ResponseEntity.ok(Map.of("message", "关注成功"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 取消关注用户
+     */
+    @DeleteMapping("/{id:\\d+}/follow")
+    public ResponseEntity<?> unfollowUser(
+            @NonNull @PathVariable Long id,
+            @NonNull @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            if (token == null || token.isEmpty()) {
+                return ResponseEntity.status(401).body(Map.of("message", "未提供认证令牌"));
+            }
+            Long userId = getUserIdFromToken(token);
+            feedService.unfollow(userId, id);
+            return ResponseEntity.ok(Map.of("message", "取消关注成功"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 获取用户粉丝数
+     */
+    @GetMapping("/{id:\\d+}/followers")
+    public ResponseEntity<?> getFollowerCount(@NonNull @PathVariable Long id) {
+        long count = feedService.getFollowerCount(id);
+        return ResponseEntity.ok(Map.of("followerCount", count));
     }
 
     private Long getUserIdFromToken(String token) {

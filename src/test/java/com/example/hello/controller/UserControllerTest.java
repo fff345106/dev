@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.example.hello.entity.User;
 import com.example.hello.enums.UserRole;
 import com.example.hello.exception.GlobalExceptionHandler;
+import com.example.hello.service.FeedService;
 import com.example.hello.service.InvitationCodeService;
 import com.example.hello.service.UserService;
 import com.example.hello.util.JwtUtil;
@@ -38,12 +39,15 @@ class UserControllerTest {
     @Mock
     private InvitationCodeService invitationCodeService;
 
+    @Mock
+    private FeedService feedService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(
-                        new UserController(userService, jwtUtil, invitationCodeService))
+                        new UserController(userService, jwtUtil, invitationCodeService, feedService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

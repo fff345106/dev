@@ -1,0 +1,255 @@
+
+============================================================
+  中国传统纹样数字档案系统 - 压力测试报告
+  时间: 2026-05-15 07:35:09
+  配置: 4 threads / 100 connections / 30s per endpoint
+============================================================
+
+=== Phase 1: Public Endpoints ===
+---
+[健康检查]
+  Endpoint: GET http://localhost:8080/actuator/health
+  Total Requests: 34621
+  Requests/sec:   1152.72
+  Avg Latency:    93.03ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[公开纹样图片列表]
+  Endpoint: GET http://localhost:8080/api/open/patterns/images
+  Total Requests: 17563
+  Requests/sec:   583.54
+  Avg Latency:    172.15ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[公开活动列表]
+  Endpoint: GET http://localhost:8080/api/open/events/
+  Total Requests: 18084
+  Requests/sec:   600.81
+  Avg Latency:    165.45ms
+  P99 Latency:    N/A
+  Non-2xx Errors: or
+  Socket Errors:  none
+
+---
+[公开藏品列表]
+  Endpoint: GET http://localhost:8080/api/open/collectibles/
+  Total Requests: 18026
+  Requests/sec:   600.67
+  Avg Latency:    165.79ms
+  P99 Latency:    N/A
+  Non-2xx Errors: or
+  Socket Errors:  none
+
+---
+[公开纹样详情(按编码)]
+  Endpoint: GET http://localhost:8080/api/open/patterns/AN-BD-DE-CN-MG-260412-005/detail
+  Total Requests: 24435
+  Requests/sec:   811.94
+  Avg Latency:    127.48ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+=== Phase 2: Guest Read Endpoints ===
+---
+[纹样列表(分页)]
+  Endpoint: GET http://localhost:8080/api/patterns?page=0&size=20
+  Total Requests: 18496
+  Requests/sec:   614.57
+  Avg Latency:    157.42ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:    Socket errors: connect 0, read 0, write 0, timeout 100
+
+---
+[纹样详情(ID)]
+  Endpoint: GET http://localhost:8080/api/patterns/76
+  Total Requests: 35455
+  Requests/sec:   1179.28
+  Avg Latency:    100.17ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[按主类别查询]
+  Endpoint: GET http://localhost:8080/api/patterns/category/AN?page=0&size=20
+  Total Requests: 17866
+  Requests/sec:   595.46
+  Avg Latency:    168.92ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[按风格查询]
+  Endpoint: GET http://localhost:8080/api/patterns/style/DE?page=0&size=20
+  Total Requests: 17149
+  Requests/sec:   571.50
+  Avg Latency:    188.47ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[按地区查询]
+  Endpoint: GET http://localhost:8080/api/patterns/region/CN?page=0&size=20
+  Total Requests: 18216
+  Requests/sec:   605.31
+  Avg Latency:    165.95ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[按时期查询]
+  Endpoint: GET http://localhost:8080/api/patterns/period/MG?page=0&size=20
+  Total Requests: 17010
+  Requests/sec:   565.15
+  Avg Latency:    202.13ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[统计信息]
+  Endpoint: GET http://localhost:8080/api/stats
+  Total Requests: 42402
+  Requests/sec:   1404.69
+  Avg Latency:    94.77ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[纹样排行榜]
+  Endpoint: GET http://localhost:8080/api/patterns/ranking
+  Total Requests: 30829
+  Requests/sec:   1024.84
+  Avg Latency:    97.65ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+=== Phase 3: Admin Read Endpoints ===
+---
+[用户列表]
+  Endpoint: GET http://localhost:8080/api/users
+  Total Requests: 21724
+  Requests/sec:   721.94
+  Avg Latency:    138.98ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[待审核列表]
+  Endpoint: GET http://localhost:8080/api/audit/pending
+  Total Requests: 26414
+  Requests/sec:   877.84
+  Avg Latency:    116.94ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[所有审核记录]
+  Endpoint: GET http://localhost:8080/api/audit
+  Total Requests: 16432
+  Requests/sec:   545.92
+  Avg Latency:    183.24ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[我的提交记录]
+  Endpoint: GET http://localhost:8080/api/audit/my
+  Total Requests: 22499
+  Requests/sec:   747.67
+  Avg Latency:    138.67ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[审核详情(ID)]
+  Endpoint: GET http://localhost:8080/api/audit/76
+  Total Requests: 28363
+  Requests/sec:   945.16
+  Avg Latency:    106.60ms
+  P99 Latency:    N/A
+  Non-2xx Errors: or
+  Socket Errors:  none
+
+---
+[通知列表]
+  Endpoint: GET http://localhost:8080/api/notifications
+  Total Requests: 20671
+  Requests/sec:   687.17
+  Avg Latency:    149.04ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+---
+[文章列表]
+  Endpoint: GET http://localhost:8080/api/articles
+  Total Requests: 25133
+  Requests/sec:   835.12
+  Avg Latency:    121.28ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:  none
+
+=== Phase 4: Auth Endpoints ===
+---
+[游客登录]
+  Endpoint: POST http://localhost:8080/api/auth/guest-login
+  Total Requests: 46147
+  Requests/sec:   1533.18
+  Avg Latency:    210.58ms
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:    Socket errors: connect 0, read 0, write 0, timeout 66
+
+---
+[管理员登录]
+  Endpoint: POST http://localhost:8080/api/auth/login
+  Total Requests: 551
+  Requests/sec:   18.32
+  Avg Latency:    1.03s
+  P99 Latency:    N/A
+  Non-2xx Errors: 0
+  Socket Errors:    Socket errors: connect 0, read 0, write 0, timeout 510
+
+=== Phase 5: Write Endpoints ===
+---
+[创建草稿]
+  Endpoint: POST http://localhost:8080/api/drafts
+  Total Requests: 19047
+  Requests/sec:   632.95
+  Avg Latency:    132.56ms
+  P99 Latency:    N/A
+  Non-2xx Errors: or
+  Socket Errors:    Socket errors: connect 0, read 0, write 0, timeout 100
+
+---
+[提交审核]
+  Endpoint: POST http://localhost:8080/api/audit/submit
+  Total Requests: 11933
+  Requests/sec:   396.49
+  Avg Latency:    250.76ms
+  P99 Latency:    N/A
+  Non-2xx Errors: or
+  Socket Errors:  none
+
+
+=== Summary ===
+Completed at: 2026-05-15 07:47:12

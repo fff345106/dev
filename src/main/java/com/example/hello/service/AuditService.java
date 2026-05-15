@@ -349,6 +349,11 @@ public class AuditService {
         pattern.setSequenceNumber(pending.getSequenceNumber());
         pattern.setPatternCode(pending.getPatternCode());
 
+        // 记录提交者ID，用于后续统计和动态查询
+        if (pending.getSubmitter() != null) {
+            pattern.setAuthorId(pending.getSubmitter().getId());
+        }
+
         // 按来源处理图片
         try {
             ImageSourceType sourceType = imageService.resolveImageSourceType(pending.getImageSourceType(), pattern.getImageUrl());

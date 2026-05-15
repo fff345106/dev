@@ -89,6 +89,18 @@ public class Pattern {
     @Column(name = "status", length = 20)
     private String status = "APPROVED"; // 默认为已通过，兼容旧数据。实际上应该用枚举，但为了简单这里用字符串或者改用枚举
 
+    @Column(name = "author_id")
+    private Long authorId;  // 提交人用户ID（非FK，冗余字段用于统计查询）
+
+    @Column(name = "view_count")
+    private Long viewCount = 0L;  // 浏览量
+
+    @Column(name = "like_count")
+    private Long likeCount = 0L;  // 点赞量
+
+    @Column(name = "download_count")
+    private Long downloadCount = 0L;  // 下载量
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -149,4 +161,12 @@ public class Pattern {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public Long getAuthorId() { return authorId; }
+    public void setAuthorId(Long authorId) { this.authorId = authorId; }
+    public Long getViewCount() { return viewCount; }
+    public void setViewCount(Long viewCount) { this.viewCount = viewCount; }
+    public Long getLikeCount() { return likeCount; }
+    public void setLikeCount(Long likeCount) { this.likeCount = likeCount; }
+    public Long getDownloadCount() { return downloadCount; }
+    public void setDownloadCount(Long downloadCount) { this.downloadCount = downloadCount; }
 }
